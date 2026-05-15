@@ -2006,7 +2006,12 @@
           totalWorkDays++;
           absentDays++;
         }
-        // Travel: Mon–Fri and worked Saturday non-holiday days
+          }
+
+      // Travel: OT period (25th prev – 24th curr), Mon–Sat worked non-holiday
+      for (const ds of od) {
+        const dow = jsDate(ds).getDay();
+        const d = gd(ds);
         if (dow !== 0 && d.worked && !d.isHoliday) tDays++;
       }
 
