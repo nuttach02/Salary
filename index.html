@@ -1430,6 +1430,32 @@
       background: var(--gray);
       border: 1.5px solid rgba(255, 255, 255, .45)
     }
+
+    .bg-leave {
+      background: #f3e8ff;
+      border-left: 3px solid #7c3aed
+    }
+
+    html.dark .bg-leave {
+      background: #2e1065;
+      border-left: 3px solid #a78bfa
+    }
+
+    .leave-badge {
+      font-size: .58rem;
+      background: #ddd6fe;
+      color: #5b21b6;
+      border-radius: 3px;
+      padding: 1px 4px;
+      line-height: 1.4;
+      margin-top: 2px;
+      display: inline-block
+    }
+
+    html.dark .leave-badge {
+      background: #4c1d95;
+      color: #ddd6fe
+    }
   </style>
 </head>
 
@@ -1567,6 +1593,12 @@
                 <div class="leg-dot" style="background:var(--card);border-left:3px solid var(--orange)"></div>OT
                 recorded
               </div>
+              <div class="leg-item">
+                <div class="leg-dot" style="background:#f3e8ff;border-left:3px solid #7c3aed"></div>Leave (salary kept, no travel)
+              </div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+              <button class="btn btn-p" onclick="openLeaveModal()" style="font-size:.78rem;padding:5px 14px">🏖️ Leave Request</button>
             </div>
             <div class="cal-grid" id="att-grid"></div>
           </div>
@@ -1632,6 +1664,38 @@
       <div class="mactions">
         <button class="btn btn-c" onclick="closeSettings()">Cancel</button>
         <button class="btn btn-p" onclick="saveSettings()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leave Request Modal -->
+  <div class="mbg" id="leavebg" onclick="leaveBgClick(event)">
+    <div class="modal" style="width:360px">
+      <div class="mhdr">
+        <h3>🏖️ Leave Request</h3>
+        <button class="mcls" onclick="closeLeave()">✕</button>
+      </div>
+      <div class="otsect" style="margin-top:6px">
+        <h4>Leave Period</h4>
+        <div class="otrow">
+          <span class="otlabel">Start Date</span>
+          <input type="date" class="otinp" id="leave-start" style="max-width:160px">
+        </div>
+        <div class="otrow">
+          <span class="otlabel">End Date</span>
+          <input type="date" class="otinp" id="leave-end" style="max-width:160px">
+        </div>
+      </div>
+      <div class="note-sect">
+        <label class="note-label" for="leave-note">📝 Reason</label>
+        <textarea id="leave-note" class="note-inp" placeholder="Leave reason..." rows="2"></textarea>
+      </div>
+      <div class="info-box" style="margin-top:10px">
+        ℹ️ Leave days keep your full salary but have no travel allowance. Weekends and holidays within the range are skipped.
+      </div>
+      <div class="mactions">
+        <button class="btn btn-c" onclick="closeLeave()">Cancel</button>
+        <button class="btn btn-p" onclick="applyLeave()">Apply Leave</button>
       </div>
     </div>
   </div>
@@ -1821,7 +1885,7 @@
 
     function defDay(ds) {
       const dow = jsDate(ds).getDay();
-      return { worked: dow >= 1 && dow <= 5, isHoliday: false, satAbsent: false, sunAbsent: false, ot: { "1": 0, "1.5": 0, "2": 0, "3": 0 }, note: '' };
+      return { worked: dow >= 1 && dow <= 5, isHoliday: false, satAbsent: false, sunAbsent: false, leave: false, ot: { "1": 0, "1.5": 0, "2": 0, "3": 0 }, note: '' };
     }
 
     function gd(ds) {
@@ -1872,10 +1936,10 @@
         if (!ds.startsWith(pfx)) continue;
         const dow = jsDate(ds).getDay();
         const d = gd(ds);
-        // Weekdays (Mon–Fri): count as workable; absent if not worked and not holiday
+        // Weekdays (Mon–Fri): count as workable; absent if not worked, not holiday, and not on leave
         if (dow >= 1 && dow <= 5 && !d.isHoliday) {
-          totalWorkDays++;
-          if (!d.worked) absentDays++;
+          if (!d.leave) totalWorkDays++;
+          if (!d.worked && !d.leave) absentDays++;
         }
         // Saturdays: only deduct if explicitly marked as absent (satAbsent flag)
         if (dow === 6 && !d.isHoliday && d.satAbsent) {
@@ -1926,6 +1990,7 @@
         if (d.satAbsent) return 'bg-sat-absent';
         return 'bg-sat';
       }
+      if (dow >= 1 && dow <= 5 && d.leave) return 'bg-leave';
       return d.worked ? 'bg-worked' : 'bg-absent';
     }
 
@@ -1968,6 +2033,7 @@
         const noteDot = hasNote ? `<div class="note-dot" title="${d.note.trim()}"></div>` : '';
 
         const holBadge = d.isHoliday ? `<div class="hol-badge">Holiday</div>` : '';
+        const leaveBadge = (!d.isHoliday && dow >= 1 && dow <= 5 && d.leave) ? `<div class="leave-badge">Leave</div>` : '';
         const mNote = isPrev
           ? `<div class="dmonth">${MONTHS[parseInt(ds.split('-')[1]) - 1].slice(0, 3)}</div>` : '';
 
@@ -1975,7 +2041,7 @@
         const isSunAbsent = dow === 0 && d.sunAbsent;
         html += `<div class="ccell ${bg}${isPrev ? ' prev' : ''}${isToday ? ' today' : ''}${hasOT ? ' has-ot' : ''}" onclick="cellClick('${ds}',event)" title="${ds}" style="animation-delay:${cellI * 13}ms">
       <div class="dnum${(!d.worked && !d.isHoliday && dow >= 1 && dow <= 5 || isSatAbsent || isSunAbsent) ? ' dim' : ''}">${dayNum}</div>
-      ${mNote}${holBadge}${otHtml}${otDot}${tdot}${noteDot}
+      ${mNote}${holBadge}${leaveBadge}${otHtml}${otDot}${tdot}${noteDot}
     </div>`;
       }
       el.innerHTML = html;
@@ -2073,7 +2139,14 @@
       if (isWkd || isSat) {
         html += `<div class="trow" id="wrow"${d.isHoliday ? ' style="display:none"' : ''}>
       <div><div class="tl">✅ Worked today</div><div class="td">${isWkd ? `Mon–Fri regular hours → +฿${TRAVEL} travel allowance` : `Mark as worked this Saturday → +฿${TRAVEL} travel allowance`}</div></div>
-      <label class="sw"><input type="checkbox" id="chk-wrk" ${d.worked ? 'checked' : ''}><span class="sw-sl"></span></label>
+      <label class="sw"><input type="checkbox" id="chk-wrk" ${d.worked && !d.leave ? 'checked' : ''}><span class="sw-sl"></span></label>
+    </div>`;
+      }
+
+      if (isWkd) {
+        html += `<div class="trow" id="lrow"${d.isHoliday ? ' style="display:none"' : ''}>
+      <div><div class="tl">🏖️ On Leave</div><div class="td">Salary kept – no travel allowance, not counted as absent</div></div>
+      <label class="sw"><input type="checkbox" id="chk-leave" ${d.leave ? 'checked' : ''}><span class="sw-sl"></span></label>
     </div>`;
       }
 
@@ -2126,8 +2199,17 @@
         if (wr) wr.style.display = chkHol.checked ? 'none' : '';
         const sr = document.getElementById('sarow');
         if (sr) sr.style.display = chkHol.checked ? 'none' : '';
+        const lr = document.getElementById('lrow');
+        if (lr) lr.style.display = chkHol.checked ? 'none' : '';
         updOT();
       });
+
+      const chkWrk = document.getElementById('chk-wrk');
+      const chkLeave = document.getElementById('chk-leave');
+      if (chkWrk && chkLeave) {
+        chkWrk.addEventListener('change', () => { if (chkWrk.checked) chkLeave.checked = false; });
+        chkLeave.addEventListener('change', () => { if (chkLeave.checked) chkWrk.checked = false; });
+      }
 
       document.getElementById('mbg').classList.add('open');
       updOT();
@@ -2151,7 +2233,8 @@
       if (!editDate) return;
       const d = gd(editDate);
       const ch = document.getElementById('chk-hol'); if (ch) d.isHoliday = ch.checked;
-      const cw = document.getElementById('chk-wrk'); if (cw) d.worked = cw.checked;
+      const cl = document.getElementById('chk-leave'); if (cl) { d.leave = cl.checked; if (d.leave) d.worked = false; }
+      const cw = document.getElementById('chk-wrk'); if (cw) { d.worked = cw.checked; if (d.worked) d.leave = false; }
       const csa = document.getElementById('chk-sat-absent'); if (csa) d.satAbsent = csa.checked;
       const csu = document.getElementById('chk-sun-absent'); if (csu) d.sunAbsent = csu.checked;
       for (const r of ["1", "1.5", "2", "3"]) {
@@ -2166,6 +2249,54 @@
 
     function closeModal() { document.getElementById('mbg').classList.remove('open'); editDate = null; }
     function bgClick(e) { if (e.target === document.getElementById('mbg')) closeModal(); }
+
+    // ── LEAVE REQUEST ──────────────────────────────────────────────────────────
+    function openLeaveModal() {
+      const now = new Date();
+      const day = now.getDay();
+      const daysToMon = (1 - day + 7) % 7 || 7;
+      const mon = new Date(now); mon.setDate(now.getDate() + daysToMon);
+      const fri = new Date(mon); fri.setDate(mon.getDate() + 4);
+      const fmtD = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      document.getElementById('leave-start').value = fmtD(mon);
+      document.getElementById('leave-end').value = fmtD(fri);
+      document.getElementById('leave-note').value = '';
+      document.getElementById('leavebg').classList.add('open');
+    }
+
+    function closeLeave() { document.getElementById('leavebg').classList.remove('open'); }
+    function leaveBgClick(e) { if (e.target === document.getElementById('leavebg')) closeLeave(); }
+
+    function applyLeave() {
+      const startStr = document.getElementById('leave-start').value;
+      const endStr = document.getElementById('leave-end').value;
+      const note = document.getElementById('leave-note').value.trim();
+      if (!startStr || !endStr) { showToast('Please select start and end dates'); return; }
+      const start = new Date(startStr + 'T00:00:00');
+      const end = new Date(endStr + 'T00:00:00');
+      if (start > end) { showToast('Start must be before end date'); return; }
+      const cur = new Date(start);
+      let count = 0;
+      while (cur <= end) {
+        const dow = cur.getDay();
+        if (dow >= 1 && dow <= 5) {
+          const ds = fd(cur.getFullYear(), cur.getMonth() + 1, cur.getDate());
+          const d = gd(ds);
+          if (!d.isHoliday) {
+            d.leave = true;
+            d.worked = false;
+            if (note) d.note = note;
+            mdata.days[ds] = d;
+            count++;
+          }
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+      closeLeave();
+      renderAll();
+      save();
+      showToast(`Leave applied for ${count} day${count !== 1 ? 's' : ''} ✓`);
+    }
 
     // ── TABS ───────────────────────────────────────────────────────────────────
     function switchTab(tab) {
@@ -2186,7 +2317,7 @@
 
     // ── KEYBOARD ───────────────────────────────────────────────────────────────
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') { closeModal(); closeSettings(); closePicker(); }
+      if (e.key === 'Escape') { closeModal(); closeSettings(); closePicker(); closeLeave(); }
     });
 
     // ── ANIMATION HELPERS ──────────────────────────────────────────────────────
