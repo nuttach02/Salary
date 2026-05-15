@@ -1492,8 +1492,16 @@
       text-align: center
     }
 
-    .preset-btn span { display: block }
-    .preset-btn small { display: block; font-weight: 400; opacity: .75; font-size: .65rem }
+    .preset-btn span {
+      display: block
+    }
+
+    .preset-btn small {
+      display: block;
+      font-weight: 400;
+      opacity: .75;
+      font-size: .65rem
+    }
 
     .preset-btn:hover {
       background: var(--blue-lt);
@@ -1649,11 +1657,13 @@
                 recorded
               </div>
               <div class="leg-item">
-                <div class="leg-dot" style="background:#f3e8ff;border-left:3px solid #7c3aed"></div>Leave (salary kept, no travel)
+                <div class="leg-dot" style="background:#f3e8ff;border-left:3px solid #7c3aed"></div>Leave (salary kept,
+                no travel)
               </div>
             </div>
             <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-              <button class="btn btn-p" onclick="openLeaveModal()" style="font-size:.78rem;padding:5px 14px">🏖️ Leave Request</button>
+              <button class="btn btn-p" onclick="openLeaveModal()" style="font-size:.78rem;padding:5px 14px">🏖️ Leave
+                Request</button>
             </div>
             <div class="cal-grid" id="att-grid"></div>
           </div>
@@ -1705,6 +1715,12 @@
         </div>
       </div>
       <div class="otsect">
+        <h4 style="display:flex;justify-content:space-between;align-items:center">Other Income
+          <button onclick="addOtherIncome()" style="background:var(--blue);color:#fff;border:none;border-radius:6px;padding:2px 10px;font-size:.72rem;font-weight:700;cursor:pointer">+ Add</button>
+        </h4>
+        <div id="oi-list"></div>
+      </div>
+      <div class="otsect">
         <h4>Deductions</h4>
         <div class="otrow">
           <span class="otlabel">SSF (฿)</span>
@@ -1746,7 +1762,8 @@
         <textarea id="leave-note" class="note-inp" placeholder="Leave reason..." rows="2"></textarea>
       </div>
       <div class="info-box" style="margin-top:10px">
-        ℹ️ Leave days keep your full salary but have no travel allowance. Weekends and holidays within the range are skipped.
+        ℹ️ Leave days keep your full salary but have no travel allowance. Weekends and holidays within the range are
+        skipped.
       </div>
       <div class="mactions">
         <button class="btn btn-c" onclick="closeLeave()">Cancel</button>
@@ -1777,6 +1794,7 @@
     let TRAVEL = 35;
     let SSF = 875;
     let HOURLY = BASE / 30 / 9;
+    let OTHER_INCOMES = [];
 
     const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'];
@@ -1875,6 +1893,7 @@
       BASE = s.base ?? 23000;
       TRAVEL = s.travel ?? 35;
       SSF = s.ssf ?? 875;
+      OTHER_INCOMES = s.otherIncomes ?? [];
       HOURLY = BASE / 30 / 9;
       document.getElementById('hdr-note').textContent =
         `Base ฿${BASE.toLocaleString()} · SSF ฿${SSF.toLocaleString()} · Travel ฿${TRAVEL}/day`;
@@ -1889,8 +1908,47 @@
       document.getElementById('set-base').value = BASE;
       document.getElementById('set-travel').value = TRAVEL;
       document.getElementById('set-ssf').value = SSF;
+      renderOtherIncomeRows();
       previewHourly();
       document.getElementById('setbg').classList.add('open');
+    }
+
+    function renderOtherIncomeRows() {
+      const list = document.getElementById('oi-list');
+      if (!list) return;
+      if (OTHER_INCOMES.length === 0) {
+        list.innerHTML = `<div style="font-size:.76rem;color:var(--gray);padding:4px 0">No extra income added.</div>`;
+        return;
+      }
+      list.innerHTML = OTHER_INCOMES.map((oi, i) => `<div class="otrow" style="gap:6px">
+        <input type="text" class="otinp" id="oi-name-${i}" value="${oi.name.replace(/"/g,'&quot;')}" placeholder="Name" style="flex:1;max-width:none;text-align:left;font-size:.82rem">
+        <input type="number" class="otinp" id="oi-amt-${i}" value="${oi.amount || ''}" min="0" step="100" placeholder="0" style="max-width:80px">
+        <button onclick="removeOtherIncome(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem;padding:0 4px;flex-shrink:0" title="Remove">✕</button>
+      </div>`).join('');
+    }
+
+    function collectOtherIncomes() {
+      const newList = [];
+      for (let i = 0; i < OTHER_INCOMES.length; i++) {
+        const nameEl = document.getElementById(`oi-name-${i}`);
+        const amtEl = document.getElementById(`oi-amt-${i}`);
+        if (nameEl && amtEl) newList.push({ name: nameEl.value.trim(), amount: parseFloat(amtEl.value) || 0 });
+      }
+      OTHER_INCOMES = newList;
+    }
+
+    function addOtherIncome() {
+      collectOtherIncomes();
+      OTHER_INCOMES.push({ name: '', amount: 0 });
+      renderOtherIncomeRows();
+      const el = document.getElementById(`oi-name-${OTHER_INCOMES.length - 1}`);
+      if (el) el.focus();
+    }
+
+    function removeOtherIncome(i) {
+      collectOtherIncomes();
+      OTHER_INCOMES.splice(i, 1);
+      renderOtherIncomeRows();
     }
 
     function previewHourly() {
@@ -1905,7 +1963,8 @@
       const travel = parseFloat(document.getElementById('set-travel').value);
       const ssf = parseFloat(document.getElementById('set-ssf').value);
       if ([base, travel, ssf].some(v => isNaN(v) || v < 0)) return;
-      const s = { base, travel, ssf };
+      collectOtherIncomes();
+      const s = { base, travel, ssf, otherIncomes: OTHER_INCOMES };
       db.collection('users').doc(currentUser.uid).set({ settings: s }, { merge: true });
       applySettings(s);
       renderAll();
@@ -2006,7 +2065,7 @@
           totalWorkDays++;
           absentDays++;
         }
-          }
+      }
 
       // Travel: OT period (25th prev – 24th curr), Mon–Sat worked non-holiday
       for (const ds of od) {
@@ -2018,10 +2077,11 @@
       const dailyRate = BASE / 30;
       const absDeduction = absentDays * dailyRate;
       const tPay = tDays * TRAVEL;
-      const gross = BASE - absDeduction + tPay + otPay;
+      const otherIncomePay = OTHER_INCOMES.reduce((s, oi) => s + (Number(oi.amount) || 0), 0);
+      const gross = BASE - absDeduction + tPay + otPay + otherIncomePay;
       const otherDeduction = Number(mdata.otherDeduction) || 0;
       const net = gross - SSF - otherDeduction;
-      return { BASE, absDeduction, absentDays, tPay, tDays, otPay, otR, otHrs, SSF, otherDeduction, gross, net };
+      return { BASE, absDeduction, absentDays, tPay, tDays, otPay, otR, otHrs, SSF, otherDeduction, otherIncomePay, gross, net };
     }
 
     // ── FORMAT ─────────────────────────────────────────────────────────────────
@@ -2125,6 +2185,9 @@
     <div class="ssect">Income</div>
     <div class="srow"><span class="sl">Base Salary</span><span class="sv pos">+฿${fmt(c.BASE)}</span></div>
     <div class="srow"><span class="sl">Travel (${c.tDays}d × ฿${TRAVEL})</span><span class="sv pos">+฿${fmt(c.tPay)}</span></div>
+    ${OTHER_INCOMES.filter(oi => oi.amount > 0).map(oi =>
+          `<div class="srow"><span class="sl">${oi.name || 'Other Income'}</span><span class="sv pos">+฿${fmt(oi.amount)}</span></div>`
+        ).join('')}
 
     <div class="ssect">OT Pay${c.otHrs > 0 ? ` — <span id="ot-hrs-badge">${c.otHrs}</span>h total` : ''}</div>
     ${anyOT
@@ -2220,7 +2283,19 @@
       if (inOT && !isSun) {
         const rinfo = { "1.5": "1.5× Weekday OT", "1": "1× Holiday pay", "2": "2× Holiday OT", "3": "3× Holiday OT" };
         html += `<div class="otsect"><h4>⏱ OT Hours</h4>`;
-        if (isSat && !d.isHoliday) {
+        if (isWkd && !d.isHoliday) {
+          html += `<div class="sat-presets">
+    <span class="preset-label">⚡ Quick:</span>
+    <button class="preset-btn" onclick="satPreset(0,1,0,0);return false"><span>→19:30</span><small>1×1.5</small></button>
+    <button class="preset-btn" onclick="satPreset(0,1.5,0,0);return false"><span>→20:00</span><small>1.5×1.5</small></button>
+    <button class="preset-btn" onclick="satPreset(0,2,0,0);return false"><span>→20:30</span><small>2×1.5</small></button>
+    <button class="preset-btn" onclick="satPreset(0,2.5,0,0);return false"><span>→21:00</span><small>2.5×1.5</small></button>
+    <button class="preset-btn" onclick="satPreset(0,3,0,0);return false"><span>→21:30</span><small>3×1.5</small></button>
+    <button class="preset-btn" onclick="satPreset(0,3.5,0,0);return false"><span>→22:00</span><small>3.5×1.5</small></button>
+    <button class="preset-btn" onclick="satPreset(0,4,0,0);return false"><span>→22:30</span><small>4×1.5</small></button>
+    <button class="preset-btn preset-clear" onclick="satPreset(0,0,0,0);return false">✕ Clear</button>
+  </div>`;
+        } else if (isSat && !d.isHoliday) {
           html += `<div class="sat-presets">
     <span class="preset-label">⚡ Quick:</span>
     <button class="preset-btn" onclick="satPreset(9,0,0,0);return false"><span>→18:30</span><small>9h×1</small></button>
