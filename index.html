@@ -2539,13 +2539,18 @@
     });
 
     // Swipe left/right to navigate months on mobile
-    let _swipeX = 0;
-    document.addEventListener('touchstart', e => { _swipeX = e.touches[0].clientX; }, { passive: true });
+    let _swipeX = 0, _swipeY = 0;
+    document.addEventListener('touchstart', e => {
+      _swipeX = e.touches[0].clientX;
+      _swipeY = e.touches[0].clientY;
+    }, { passive: true });
     document.addEventListener('touchend', e => {
       const dx = e.changedTouches[0].clientX - _swipeX;
+      const dy = e.changedTouches[0].clientY - _swipeY;
       const anyOpen = document.getElementById('mbg').classList.contains('open') ||
         document.getElementById('setbg').classList.contains('open');
-      if (Math.abs(dx) > 55 && !anyOpen) changeMonth(dx < 0 ? 1 : -1);
+      if (Math.abs(dx) > 80 && Math.abs(dx) > Math.abs(dy) * 1.5 && !anyOpen)
+        changeMonth(dx < 0 ? 1 : -1);
     }, { passive: true });
 
     // ── MONTH PICKER ──────────────────────────────────────────────────────────
