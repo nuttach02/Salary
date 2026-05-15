@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Salary Calculator – THB</title>
+  <title>Salary Calculator – THB</title>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
   <script>if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark')</script>
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -1456,6 +1456,61 @@
       background: #4c1d95;
       color: #ddd6fe
     }
+
+    /* ── SATURDAY PRESETS ────────────────────────────────────────────────────── */
+    .sat-presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      align-items: center;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .preset-label {
+      font-size: .72rem;
+      font-weight: 700;
+      color: var(--gray);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      white-space: nowrap
+    }
+
+    .preset-btn {
+      padding: 4px 9px;
+      border-radius: 6px;
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: .72rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .12s, border-color .12s, color .12s;
+      white-space: nowrap;
+      line-height: 1.3;
+      text-align: center
+    }
+
+    .preset-btn span { display: block }
+    .preset-btn small { display: block; font-weight: 400; opacity: .75; font-size: .65rem }
+
+    .preset-btn:hover {
+      background: var(--blue-lt);
+      border-color: var(--blue);
+      color: var(--blue)
+    }
+
+    .preset-clear {
+      color: var(--red);
+      border-color: var(--red)
+    }
+
+    .preset-clear:hover {
+      background: var(--red-lt);
+      border-color: var(--red);
+      color: var(--red)
+    }
   </style>
 </head>
 
@@ -2160,6 +2215,20 @@
       if (inOT && !isSun) {
         const rinfo = { "1.5": "1.5× Weekday OT", "1": "1× Holiday pay", "2": "2× Holiday OT", "3": "3× Holiday OT" };
         html += `<div class="otsect"><h4>⏱ OT Hours</h4>`;
+        if (isSat && !d.isHoliday) {
+          html += `<div class="sat-presets">
+    <span class="preset-label">⚡ Quick:</span>
+    <button class="preset-btn" onclick="satPreset(9,0,0,0);return false"><span>→18:30</span><small>9h×1</small></button>
+    <button class="preset-btn" onclick="satPreset(9,0,0,1);return false"><span>→19:30</span><small>9×1+1×3</small></button>
+    <button class="preset-btn" onclick="satPreset(9,0,0,1.5);return false"><span>→20:00</span><small>9×1+1.5×3</small></button>
+    <button class="preset-btn" onclick="satPreset(9,0,0,2);return false"><span>→20:30</span><small>9×1+2×3</small></button>
+    <button class="preset-btn" onclick="satPreset(9,0,0,2.5);return false"><span>→21:00</span><small>9×1+2.5×3</small></button>
+    <button class="preset-btn" onclick="satPreset(9,0,0,3);return false"><span>→21:30</span><small>9×1+3×3</small></button>
+    <button class="preset-btn" onclick="satPreset(9,0,0,3.5);return false"><span>→22:00</span><small>9×1+3.5×3</small></button>
+    <button class="preset-btn" onclick="satPreset(9,0,0,4);return false"><span>→22:30</span><small>9×1+4×3</small></button>
+    <button class="preset-btn preset-clear" onclick="satPreset(0,0,0,0);return false">✕ Clear</button>
+  </div>`;
+        }
         const order = d.isHoliday ? ["1", "1.5", "2", "3"] : ["1.5", "1", "2", "3"];
         for (const r of order) {
           const h = Number(d.ot[r]) || 0, pay = h * HOURLY * Number(r);
@@ -2212,6 +2281,15 @@
       }
 
       document.getElementById('mbg').classList.add('open');
+      updOT();
+    }
+
+    function satPreset(h1, h15, h2, h3) {
+      const vals = { "1": h1, "1.5": h15, "2": h2, "3": h3 };
+      for (const [r, v] of Object.entries(vals)) {
+        const el = document.getElementById(`ot-${r}`);
+        if (el) el.value = v > 0 ? v : '';
+      }
       updOT();
     }
 
