@@ -1728,6 +1728,12 @@
           <span class="otunit"></span>
         </div>
       </div>
+      <div class="otsect">
+        <h4 style="display:flex;justify-content:space-between;align-items:center">Other Deduction
+          <button onclick="addOtherDeduction()" style="background:var(--blue);color:#fff;border:none;border-radius:6px;padding:2px 10px;font-size:.72rem;font-weight:700;cursor:pointer">+ Add</button>
+        </h4>
+        <div id="od-list"></div>
+      </div>
       <div class="srow" style="margin-top:10px;padding:8px 0;border-top:1px solid var(--border)">
         <span class="sl" style="font-size:.8rem">Hourly OT rate (Base ÷ 30 ÷ 9)</span>
         <span class="sv" id="set-hrate" style="color:var(--blue);font-size:.82rem">—</span>
@@ -1795,6 +1801,7 @@
     let SSF = 875;
     let HOURLY = BASE / 30 / 9;
     let OTHER_INCOMES = [];
+    let OTHER_DEDUCTIONS = [];
 
     const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'];
@@ -1894,6 +1901,7 @@
       TRAVEL = s.travel ?? 35;
       SSF = s.ssf ?? 875;
       OTHER_INCOMES = s.otherIncomes ?? [];
+      OTHER_DEDUCTIONS = s.otherDeductions ?? [];
       HOURLY = BASE / 30 / 9;
       document.getElementById('hdr-note').textContent =
         `Base ฿${BASE.toLocaleString()} · SSF ฿${SSF.toLocaleString()} · Travel ฿${TRAVEL}/day`;
@@ -1909,6 +1917,7 @@
       document.getElementById('set-travel').value = TRAVEL;
       document.getElementById('set-ssf').value = SSF;
       renderOtherIncomeRows();
+      renderOtherDeductionRows();
       previewHourly();
       document.getElementById('setbg').classList.add('open');
     }
@@ -1951,6 +1960,44 @@
       renderOtherIncomeRows();
     }
 
+    function renderOtherDeductionRows() {
+      const list = document.getElementById('od-list');
+      if (!list) return;
+      if (OTHER_DEDUCTIONS.length === 0) {
+        list.innerHTML = `<div style="font-size:.76rem;color:var(--gray);padding:4px 0">No extra deduction added.</div>`;
+        return;
+      }
+      list.innerHTML = OTHER_DEDUCTIONS.map((od, i) => `<div class="otrow" style="gap:6px">
+        <input type="text" class="otinp" id="od-name-${i}" value="${od.name.replace(/"/g,'&quot;')}" placeholder="Name" style="flex:1;max-width:none;text-align:left;font-size:.82rem">
+        <input type="number" class="otinp" id="od-amt-${i}" value="${od.amount || ''}" min="0" step="100" placeholder="0" style="max-width:80px">
+        <button onclick="removeOtherDeduction(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem;padding:0 4px;flex-shrink:0" title="Remove">✕</button>
+      </div>`).join('');
+    }
+
+    function collectOtherDeductions() {
+      const newList = [];
+      for (let i = 0; i < OTHER_DEDUCTIONS.length; i++) {
+        const nameEl = document.getElementById(`od-name-${i}`);
+        const amtEl = document.getElementById(`od-amt-${i}`);
+        if (nameEl && amtEl) newList.push({ name: nameEl.value.trim(), amount: parseFloat(amtEl.value) || 0 });
+      }
+      OTHER_DEDUCTIONS = newList;
+    }
+
+    function addOtherDeduction() {
+      collectOtherDeductions();
+      OTHER_DEDUCTIONS.push({ name: '', amount: 0 });
+      renderOtherDeductionRows();
+      const el = document.getElementById(`od-name-${OTHER_DEDUCTIONS.length - 1}`);
+      if (el) el.focus();
+    }
+
+    function removeOtherDeduction(i) {
+      collectOtherDeductions();
+      OTHER_DEDUCTIONS.splice(i, 1);
+      renderOtherDeductionRows();
+    }
+
     function previewHourly() {
       const base = parseFloat(document.getElementById('set-base').value) || 0;
       document.getElementById('set-hrate').textContent = `฿${fmt(base / 30 / 9)}/hr`;
@@ -1964,7 +2011,8 @@
       const ssf = parseFloat(document.getElementById('set-ssf').value);
       if ([base, travel, ssf].some(v => isNaN(v) || v < 0)) return;
       collectOtherIncomes();
-      const s = { base, travel, ssf, otherIncomes: OTHER_INCOMES };
+      collectOtherDeductions();
+      const s = { base, travel, ssf, otherIncomes: OTHER_INCOMES, otherDeductions: OTHER_DEDUCTIONS };
       db.collection('users').doc(currentUser.uid).set({ settings: s }, { merge: true });
       applySettings(s);
       renderAll();
@@ -2080,8 +2128,9 @@
       const otherIncomePay = OTHER_INCOMES.reduce((s, oi) => s + (Number(oi.amount) || 0), 0);
       const gross = BASE - absDeduction + tPay + otPay + otherIncomePay;
       const otherDeduction = Number(mdata.otherDeduction) || 0;
-      const net = gross - SSF - otherDeduction;
-      return { BASE, absDeduction, absentDays, tPay, tDays, otPay, otR, otHrs, SSF, otherDeduction, otherIncomePay, gross, net };
+      const otherDeductionsPay = OTHER_DEDUCTIONS.reduce((s, od) => s + (Number(od.amount) || 0), 0);
+      const net = gross - SSF - otherDeduction - otherDeductionsPay;
+      return { BASE, absDeduction, absentDays, tPay, tDays, otPay, otR, otHrs, SSF, otherDeduction, otherIncomePay, otherDeductionsPay, gross, net };
     }
 
     // ── FORMAT ─────────────────────────────────────────────────────────────────
@@ -2206,6 +2255,9 @@
         <input type="number" class="otinp" id="other-inp" value="${mdata.otherDeduction || ''}" min="0" step="100" placeholder="0" style="max-width:80px" onchange="setOther(this.value)">
       </span>
     </div>
+    ${OTHER_DEDUCTIONS.filter(od => od.amount > 0).map(od =>
+          `<div class="srow"><span class="sl">${od.name || 'Other Deduction'}</span><span class="sv neg">−฿${fmt(od.amount)}</span></div>`
+        ).join('')}
 
     <div class="sgross"><span>Gross</span><span>฿${fmt(c.gross)}</span></div>
     <div class="snet"><span class="nl">Net Salary</span><span class="nv">฿${fmt(c.net)}</span></div>`;
