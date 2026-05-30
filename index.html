@@ -1809,8 +1809,11 @@
 
     // ── STATE ──────────────────────────────────────────────────────────────────
     let currentUser = null;
-    let Y = new Date().getFullYear();
-    let M = new Date().getMonth() + 1;
+    const _now = new Date();
+    let Y = _now.getFullYear();
+    let M = _now.getMonth() + 1;
+    // OT period is 25th prev – 24th curr; if today >= 25 we're in the next period
+    if (_now.getDate() >= 25) { M++; if (M > 12) { M = 1; Y++; } }
     let editDate = null;
     let mdata = {};
 
