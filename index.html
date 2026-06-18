@@ -12,67 +12,86 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <style>
     :root {
-      --blue: #1a73e8;
-      --blue-lt: #e8f0fe;
-      --green: #34a853;
-      --green-lt: #e6f4ea;
-      --red: #ea4335;
-      --red-lt: #fce8e6;
-      --yellow: #f59e0b;
-      --yellow-lt: #fef3c7;
-      --orange: #f97316;
-      --orange-lt: #fff7ed;
-      --gray: #5f6368;
-      --border: #dadce0;
-      --bg: #f0f4f8;
+      /* Primary: deep petrol teal — the brand accent (chrome, actions, focus, header) */
+      --blue: #007985;
+      --blue-lt: #e2f4f6;
+      --on-accent: #ffffff;
+      --grad-2: #004f59;
+      /* Worked / positive */
+      --green: #23773d;
+      --green-lt: #e3f6e6;
+      /* Sunday / negative */
+      --red: #b74441;
+      --red-lt: #ffe9e6;
+      /* Holiday */
+      --yellow: #dca744;
+      --yellow-lt: #fef0d4;
+      /* OT accent */
+      --orange: #cf6f19;
+      --orange-lt: #ffefe0;
+      /* Neutrals — tinted toward the teal primary, not pure gray */
+      --gray: #4b5961;
+      --border: #d3dde0;
+      --bg: #f3f8fa;
       --card: #ffffff;
-      --text: #1f2937;
-      --surface: #f1f3f4;
-      --surface2: #e8eaed;
+      --text: #1e2930;
+      --surface: #ebf1f4;
+      --surface2: #dce5e7;
       --input-bg: #fff;
-      --hol-text: #78350f;
-      --badge-wd-color: #137333;
-      --badge-sat-color: #1251a3;
-      --badge-sun-color: #c5221f;
-      --badge-hol-color: #78350f;
-      --blue-bright: #93c5fd;
+      --hol-text: #623600;
+      --badge-wd-color: #206b38;
+      --badge-sat-color: #065da0;
+      --badge-sun-color: #b13131;
+      --badge-hol-color: #775223;
+      --blue-bright: #afd5fe;
       --blacktap: var(--blue);
-      --sun-bg: #fca5a5;
-      --worked-bg: #86efac;
-      --sat-bg: #bfdbfe;
-      --hol-bg: #fde68a;
+      --sun-bg: #ffc6c0;
+      --worked-bg: #b5e6be;
+      --sat-bg: #cbe4ff;
+      --hol-bg: #f6d795;
+      /* Leave (violet) */
+      --leave-bg: #f1ecff;
+      --leave-bd: #7152b5;
+      --leave-badge-bg: #e0d7ff;
+      --leave-badge-tx: #583797;
     }
 
     html.dark {
       --blacktap: #000000;
-      --blue: #60a5fa;
-      --blue-lt: #172554;
-      --green: #4ade80;
-      --green-lt: #052e16;
-      --red: #f87171;
-      --red-lt: #450a0a;
-      --yellow: #fbbf24;
-      --yellow-lt: #431407;
-      --orange: #fb923c;
-      --orange-lt: #431407;
-      --gray: #94a3b8;
-      --border: #334155;
-      --bg: #0f172a;
-      --card: #1e293b;
-      --text: #e2e8f0;
-      --surface: #334155;
-      --surface2: #475569;
-      --input-bg: #1e293b;
-      --hol-text: #1c1917;
-      --badge-wd-color: #86efac;
-      --badge-sat-color: #93c5fd;
-      --badge-sun-color: #fca5a5;
-      --badge-hol-color: #fcd34d;
-      --blue-bright: #1e40af;
+      --blue: #3fb8be;
+      --blue-lt: #0d373b;
+      --on-accent: #04191f;
+      --grad-2: #0a3a43;
+      --green: #69c27e;
+      --green-lt: #1a3821;
+      --red: #f07f77;
+      --red-lt: #53211f;
+      --yellow: #edb755;
+      --yellow-lt: #433215;
+      --orange: #f49752;
+      --orange-lt: #482f1a;
+      --gray: #9aa7ae;
+      --border: #31383c;
+      --bg: #0b1115;
+      --card: #161d21;
+      --text: #dde6eb;
+      --surface: #252b2f;
+      --surface2: #363d41;
+      --input-bg: #161d21;
+      --hol-text: #24180a;
+      --badge-wd-color: #8cd59b;
+      --badge-sat-color: #91c3f6;
+      --badge-sun-color: #ff9890;
+      --badge-hol-color: #eac07a;
+      --blue-bright: #194f81;
       --sun-bg: var(--red-lt);
       --worked-bg: var(--green-lt);
-      --sat-bg: var(--blue-lt);
+      --sat-bg: #1c354e;
       --hol-bg: var(--yellow-lt);
+      --leave-bg: #33294d;
+      --leave-bd: #b7a1f5;
+      --leave-badge-bg: #463968;
+      --leave-badge-tx: #d1c3ff;
     }
 
     * {
@@ -149,14 +168,14 @@
     }
 
     .auth-hdr {
-      background: linear-gradient(135deg, var(--blue), #1251a3);
+      background: linear-gradient(135deg, var(--blue), var(--grad-2));
       color: #fff;
       padding: 28px 24px 20px;
       text-align: center
     }
 
     html.dark .auth-hdr {
-      background: linear-gradient(135deg, #1e40af, #1e3a8a)
+      background: linear-gradient(135deg, #0e5a63, var(--grad-2))
     }
 
     .auth-hdr h1 {
@@ -231,7 +250,7 @@
       width: 100%;
       padding: 10px;
       background: var(--blue);
-      color: #fff;
+      color: var(--on-accent);
       border: none;
       border-radius: 8px;
       font-size: .9rem;
@@ -496,7 +515,7 @@
     }
 
     .cdow.sat {
-      color: var(--blue)
+      color: var(--badge-sat-color)
     }
 
     .ccell {
@@ -645,12 +664,12 @@
       padding: 13px 16px;
       font-weight: 700;
       font-size: .95rem;
-      background: linear-gradient(135deg, var(--blue), #1251a3);
+      background: linear-gradient(135deg, var(--blue), var(--grad-2));
       color: #fff
     }
 
     html.dark .stitle {
-      background: linear-gradient(135deg, #1e40af, #1e3a8a)
+      background: linear-gradient(135deg, #0e5a63, var(--grad-2))
     }
 
     .sbody {
@@ -812,7 +831,7 @@
     }
 
     .mtype.saturday {
-      background: var(--blue-lt);
+      background: var(--sat-bg);
       color: var(--badge-sat-color)
     }
 
@@ -968,7 +987,7 @@
       border-radius: 8px;
       padding: 8px 11px;
       font-size: .76rem;
-      color: var(--badge-sat-color);
+      color: var(--blue);
       margin-top: 10px;
       line-height: 1.5
     }
@@ -992,7 +1011,7 @@
 
     .btn-p {
       background: var(--blue);
-      color: #fff
+      color: var(--on-accent)
     }
 
     .btn-p:hover {
@@ -1113,15 +1132,15 @@
 
     @keyframes pulse {
       0% {
-        box-shadow: 0 0 0 0 rgba(52, 168, 83, .45);
+        box-shadow: 0 0 0 0 rgba(35, 119, 61, .45);
       }
 
       70% {
-        box-shadow: 0 0 0 8px rgba(52, 168, 83, 0);
+        box-shadow: 0 0 0 8px rgba(35, 119, 61, 0);
       }
 
       100% {
-        box-shadow: 0 0 0 0 rgba(52, 168, 83, 0);
+        box-shadow: 0 0 0 0 rgba(35, 119, 61, 0);
       }
     }
 
@@ -1187,7 +1206,7 @@
     .ripple-circle {
       position: absolute;
       border-radius: 50%;
-      background: rgba(26, 115, 232, .2);
+      background: rgba(0, 121, 133, .22);
       width: 30px;
       height: 30px;
       margin-left: -15px;
@@ -1382,7 +1401,7 @@
 
     .picker-month.active {
       background: var(--blue);
-      color: #fff;
+      color: var(--on-accent);
       font-weight: 700
     }
 
@@ -1432,29 +1451,19 @@
     }
 
     .bg-leave {
-      background: #f3e8ff;
-      border-left: 3px solid #7c3aed
-    }
-
-    html.dark .bg-leave {
-      background: #2e1065;
-      border-left: 3px solid #a78bfa
+      background: var(--leave-bg);
+      border-left: 3px solid var(--leave-bd)
     }
 
     .leave-badge {
       font-size: .58rem;
-      background: #ddd6fe;
-      color: #5b21b6;
+      background: var(--leave-badge-bg);
+      color: var(--leave-badge-tx);
       border-radius: 3px;
       padding: 1px 4px;
       line-height: 1.4;
       margin-top: 2px;
       display: inline-block
-    }
-
-    html.dark .leave-badge {
-      background: #4c1d95;
-      color: #ddd6fe
     }
 
     /* ── SATURDAY PRESETS ────────────────────────────────────────────────────── */
@@ -1657,7 +1666,7 @@
                 recorded
               </div>
               <div class="leg-item">
-                <div class="leg-dot" style="background:#f3e8ff;border-left:3px solid #7c3aed"></div>Leave (salary kept,
+                <div class="leg-dot" style="background:var(--leave-bg);border-left:3px solid var(--leave-bd)"></div>Leave (salary kept,
                 no travel)
               </div>
             </div>
@@ -1716,7 +1725,7 @@
       </div>
       <div class="otsect">
         <h4 style="display:flex;justify-content:space-between;align-items:center">Other Income
-          <button onclick="addOtherIncome()" style="background:var(--blue);color:#fff;border:none;border-radius:6px;padding:2px 10px;font-size:.72rem;font-weight:700;cursor:pointer">+ Add</button>
+          <button onclick="addOtherIncome()" style="background:var(--blue);color:var(--on-accent);border:none;border-radius:6px;padding:2px 10px;font-size:.72rem;font-weight:700;cursor:pointer">+ Add</button>
         </h4>
         <div id="oi-list"></div>
       </div>
@@ -1730,7 +1739,7 @@
       </div>
       <div class="otsect">
         <h4 style="display:flex;justify-content:space-between;align-items:center">Other Deduction
-          <button onclick="addOtherDeduction()" style="background:var(--blue);color:#fff;border:none;border-radius:6px;padding:2px 10px;font-size:.72rem;font-weight:700;cursor:pointer">+ Add</button>
+          <button onclick="addOtherDeduction()" style="background:var(--blue);color:var(--on-accent);border:none;border-radius:6px;padding:2px 10px;font-size:.72rem;font-weight:700;cursor:pointer">+ Add</button>
         </h4>
         <div id="od-list"></div>
       </div>
@@ -2661,7 +2670,7 @@
     });
   </script>
 </body>
-<footer style="text-align:center;padding:18px 0 24px;color:#5f6368;font-size:0.8rem;">
+<footer style="text-align:center;padding:18px 0 24px;color:var(--gray);font-size:0.8rem;">
   &copy; 2026 ije
 </footer>
 
