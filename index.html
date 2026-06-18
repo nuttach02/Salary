@@ -2050,7 +2050,7 @@
 
     function defDay(ds) {
       const dow = jsDate(ds).getDay();
-      return { worked: dow >= 1 && dow <= 5, isHoliday: false, satAbsent: false, sunAbsent: false, leave: false, ot: { "1": 0, "1.5": 0, "2": 0, "3": 0 }, note: '' };
+      return { worked: dow >= 1 && dow <= 5, isHoliday: false, satAbsent: false, sunAbsent: false, leave: false, ot: { "1": 0, "1.5": 0, "2": 0, "3": 0 }, lateMin: 0, note: '' };
     }
 
     function gd(ds) {
@@ -2096,11 +2096,12 @@
       }
       const otHrs = Object.values(otR).reduce((a, b) => a + b, 0);
 
-      let tDays = 0, absentDays = 0, totalWorkDays = 0;
+      let tDays = 0, absentDays = 0, totalWorkDays = 0, totalLateMin = 0;
       for (const ds of ad) {
         if (!ds.startsWith(pfx)) continue;
         const dow = jsDate(ds).getDay();
         const d = gd(ds);
+        totalLateMin += Number(d.lateMin) || 0;
         // Weekdays (Mon–Fri): count as workable; absent if not worked, not holiday, and not on leave
         if (dow >= 1 && dow <= 5 && !d.isHoliday) {
           if (!d.leave) totalWorkDays++;
@@ -2130,10 +2131,10 @@
       const tPay = tDays * TRAVEL;
       const otherIncomePay = OTHER_INCOMES.reduce((s, oi) => s + (Number(oi.amount) || 0), 0);
       const gross = BASE - absDeduction + tPay + otPay + otherIncomePay;
-      const otherDeduction = Number(mdata.otherDeduction) || 0;
+      const lateDeduction = totalLateMin * (BASE / 30 / 9 / 60);
       const otherDeductionsPay = OTHER_DEDUCTIONS.reduce((s, od) => s + (Number(od.amount) || 0), 0);
-      const net = gross - SSF - otherDeduction - otherDeductionsPay;
-      return { BASE, absDeduction, absentDays, tPay, tDays, otPay, otR, otHrs, SSF, otherDeduction, otherIncomePay, otherDeductionsPay, gross, net };
+      const net = gross - SSF - lateDeduction - otherDeductionsPay;
+      return { BASE, absDeduction, absentDays, tPay, tDays, otPay, otR, otHrs, SSF, totalLateMin, lateDeduction, otherIncomePay, otherDeductionsPay, gross, net };
     }
 
     // ── FORMAT ─────────────────────────────────────────────────────────────────
@@ -2251,13 +2252,9 @@
     ${c.absentDays > 0
           ? `<div class="srow"><span class="sl">Absent (${c.absentDays}d)</span><span class="sv neg">−฿${fmt(c.absDeduction)}</span></div>`
           : `<div class="srow"><span class="sl">Absent (0d)</span><span class="sv">฿0.00</span></div>`}
-    <div class="srow">
-      <span class="sl">Other(late minutes or ...)</span>
-      <span style="display:flex;align-items:center;gap:3px">
-        <span style="color:var(--red);font-size:.83rem">−฿</span>
-        <input type="number" class="otinp" id="other-inp" value="${mdata.otherDeduction || ''}" min="0" step="100" placeholder="0" style="max-width:80px" onchange="setOther(this.value)">
-      </span>
-    </div>
+    ${c.totalLateMin > 0
+          ? `<div class="srow"><span class="sl">มาสาย (รวม ${c.totalLateMin} นาที)</span><span class="sv neg">−฿${fmt(c.lateDeduction)}</span></div>`
+          : `<div class="srow"><span class="sl">มาสาย (0 นาที)</span><span class="sv">฿0.00</span></div>`}
     ${OTHER_DEDUCTIONS.filter(od => od.amount > 0).map(od =>
           `<div class="srow"><span class="sl">${od.name || 'Other Deduction'}</span><span class="sv neg">−฿${fmt(od.amount)}</span></div>`
         ).join('')}
@@ -2280,12 +2277,6 @@
         countUpEl(otBadge, _prevOtHrs, c.otHrs, 500, n => (Math.round(n * 10) / 10).toString());
       }
       _prevOtHrs = c.otHrs;
-    }
-
-    function setOther(v) {
-      mdata.otherDeduction = parseFloat(v) || 0;
-      renderSummary();
-      save();
     }
 
     // ── MODAL ──────────────────────────────────────────────────────────────────
@@ -2332,6 +2323,13 @@
         html += `<div class="trow" id="sarow"${d.isHoliday ? ' style="display:none"' : ''}>
       <div><div class="tl">❌ Absent (deduct salary)</div><div class="td">Mark this Saturday as an absence — daily rate will be deducted</div></div>
       <label class="sw"><input type="checkbox" id="chk-sat-absent" ${d.satAbsent ? 'checked' : ''}><span class="sw-sl"></span></label>
+    </div>`;
+      }
+
+      if (isWkd || isSat) {
+        html += `<div class="trow" id="laterow"${d.isHoliday ? ' style="display:none"' : ''}>
+      <div><div class="tl">⏰ มาสาย (นาที)</div><div class="td">หักเงินตามนาที — ฿${fmt(BASE / 30 / 9 / 60)}/นาที</div></div>
+      <input type="number" class="otinp" id="late-min" value="${d.lateMin || ''}" min="0" step="1" placeholder="0" style="max-width:70px">
     </div>`;
       }
 
@@ -2405,6 +2403,8 @@
         if (sr) sr.style.display = chkHol.checked ? 'none' : '';
         const lr = document.getElementById('lrow');
         if (lr) lr.style.display = chkHol.checked ? 'none' : '';
+        const ltr = document.getElementById('laterow');
+        if (ltr) ltr.style.display = chkHol.checked ? 'none' : '';
         updOT();
       });
 
@@ -2450,6 +2450,7 @@
       const cw = document.getElementById('chk-wrk'); if (cw) { d.worked = cw.checked; if (d.worked) d.leave = false; }
       const csa = document.getElementById('chk-sat-absent'); if (csa) d.satAbsent = csa.checked;
       const csu = document.getElementById('chk-sun-absent'); if (csu) d.sunAbsent = csu.checked;
+      const lm = document.getElementById('late-min'); if (lm) d.lateMin = parseFloat(lm.value) || 0;
       for (const r of ["1", "1.5", "2", "3"]) {
         const el = document.getElementById(`ot-${r}`);
         if (el) d.ot[r] = parseFloat(el.value) || 0;
