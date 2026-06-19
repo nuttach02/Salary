@@ -1845,6 +1845,10 @@
                 <span class="late-badge" style="margin:0">⏰m</span>Late (deducted)
               </div>
             </div>
+            <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+              <input type="file" id="import-file" accept=".html,.htm" style="display:none" onchange="handleImportFile(event)">
+              <button class="btn btn-p" onclick="document.getElementById('import-file').click()" style="font-size:.78rem;padding:5px 14px">⬆️ Import HR file</button>
+            </div>
             <div class="cal-grid" id="ot-grid"></div>
           </div>
           <div id="pane-att" class="tab-pane">
@@ -2016,6 +2020,17 @@
         <button class="btn btn-c" onclick="closeLeave()">Cancel</button>
         <button class="btn btn-p" onclick="applyLeave()">Apply Leave</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Import HR File Modal -->
+  <div class="mbg" id="importbg" onclick="importBgClick(event)">
+    <div class="modal" style="width:380px">
+      <div class="mhdr">
+        <h3>⬆️ Import Lateness</h3>
+        <button class="mcls" onclick="closeImport()">✕</button>
+      </div>
+      <div id="import-body"></div>
     </div>
   </div>
 
@@ -3018,6 +3033,203 @@
       showToast(`Leave applied for ${count} day${count !== 1 ? 's' : ''} ✓`);
     }
 
+    // ── IMPORT (HR attendance HTML) ──────────────────────────────────────────────
+    let pendingImport = null; // parsed rows awaiting confirmation
+    let importDiff = null;    // per-day { ds, oldLate, newLate, changed } for the preview
+
+    // 'YYYYMMDD' -> 'YYYY-MM-DD' (null if malformed)
+    function hrDateToDs(wrkdat) {
+      const s = String(wrkdat || '').trim();
+      if (!/^\d{8}$/.test(s)) return null;
+      return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+    }
+
+    // Parse an OvertimeApplication.html export. Returns an array of day rows, or
+    // null if the attendance table isn't found. Reads more fields than v1 uses so
+    // future imports (OT/leave/swipe) are a small extension.
+    function parseAttendanceHtml(htmlText) {
+      const doc = new DOMParser().parseFromString(htmlText, 'text/html');
+      const table = doc.getElementById('gvAttn');
+      if (!table) return null;
+      const rows = [];
+      table.querySelectorAll('tr').forEach(tr => {
+        const dateEl = tr.querySelector("[id$='gvlblWrkdat']");
+        if (!dateEl) return; // skips the header row and any non-data rows
+        const ds = hrDateToDs(dateEl.textContent);
+        if (!ds) return;
+        const latEl = tr.querySelector("[id$='gvlblLatmin']");
+        const latmin = latEl ? (parseInt(latEl.textContent.trim(), 10) || 0) : 0;
+        const txt = sel => { const e = tr.querySelector(sel); return e ? e.textContent.trim() : ''; };
+        rows.push({
+          ds, latmin,
+          emplid: txt("[id$='gvlblEmplid']"),
+          swipeIn: txt("[id$='gvlblEntdat']"),
+          swipeOut: txt("[id$='gvlblStwkhr']")
+        });
+      });
+      return rows;
+    }
+
+    // Route each day's lateness to the month doc(s) that render/aggregate it.
+    // primary  = the day's own calendar month (deduction + attendance calendar + own OT calendar).
+    // secondary = next month, only for day >= 25, so that month's OT calendar shows the badge.
+    // calc()'s month-prefix filter means the secondary copy never double-counts.
+    function buildImportWrites(rows) {
+      const primary = {}, secondary = {};
+      const add = (obj, key, ds, v) => { (obj[key] || (obj[key] = {}))[ds] = v; };
+      for (const r of rows) {
+        if (!r.ds) continue;
+        const [y, m, day] = r.ds.split('-').map(Number);
+        add(primary, monthKey(y, m), r.ds, r.latmin);
+        if (day >= 25) {
+          const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
+          add(secondary, monthKey(ny, nm), r.ds, r.latmin);
+        }
+      }
+      return { primary, secondary };
+    }
+
+    function handleImportFile(event) {
+      const input = event.target;
+      const file = input.files && input.files[0];
+      input.value = ''; // allow re-selecting the same file
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        let rows;
+        try { rows = parseAttendanceHtml(String(reader.result)); }
+        catch (e) { showToast('อ่านไฟล์ไม่สำเร็จ'); return; }
+        if (rows === null) { showToast('ไม่พบตาราง attendance (#gvAttn) ในไฟล์'); return; }
+        if (!rows.length) { showToast('ไม่พบข้อมูลวันในไฟล์'); return; }
+        pendingImport = rows;
+        showToast('กำลังเทียบกับข้อมูลเดิม…');
+        try { await prepareImportDiff(); }
+        catch (e) { showToast('อ่านข้อมูลเดิมไม่สำเร็จ: ' + ((e && e.message) || e)); return; }
+        openImportPreview();
+      };
+      reader.onerror = () => showToast('อ่านไฟล์ไม่สำเร็จ');
+      reader.readAsText(file);
+    }
+
+    // Fetch the current lateMin for each parsed day (from its own calendar month —
+    // the authoritative location) so the preview can show old → new before saving.
+    async function prepareImportDiff() {
+      const rows = pendingImport;
+      const curKey = monthKey(Y, M);
+      const keys = [...new Set(rows.map(r => {
+        const [y, m] = r.ds.split('-').map(Number);
+        return monthKey(y, m);
+      }))];
+      const monthData = {};
+      for (const key of keys) {
+        if (key === curKey) { monthData[key] = mdata; continue; }
+        const snap = await userMonths().doc(key).get();
+        monthData[key] = snap.exists ? snap.data() : { days: {} };
+      }
+      importDiff = rows.map(r => {
+        const [y, m] = r.ds.split('-').map(Number);
+        const days = (monthData[monthKey(y, m)] || {}).days || {};
+        const d = days[r.ds];
+        const oldLate = d ? (Number(d.lateMin) || 0) : 0;
+        return { ds: r.ds, oldLate, newLate: r.latmin, changed: oldLate !== r.latmin };
+      });
+    }
+
+    function openImportPreview() {
+      const rows = pendingImport;
+      const dates = rows.map(r => r.ds).sort();
+      const emps = [...new Set(rows.map(r => r.emplid).filter(Boolean))];
+      const months = [...new Set(rows.map(r => r.ds.slice(0, 7)))];
+
+      const diff = importDiff || [];
+      const changed = diff.filter(d => d.changed);
+      const overwrite = changed.filter(d => d.oldLate > 0); // existing non-zero value being modified
+
+      const changedHtml = changed.length
+        ? `<div style="max-height:230px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-top:6px">
+            ${changed.map(d => {
+            const warn = d.oldLate > 0;
+            return `<div class="srow" style="padding:5px 10px${warn ? ';background:var(--red-lt)' : ''}">
+              <span class="sl">${d.ds}${warn ? ' ⚠️' : ''}</span>
+              <span class="sv">${d.oldLate} → <strong style="color:${warn ? 'var(--red)' : 'var(--green)'}">${d.newLate}</strong> นาที</span>
+            </div>`;
+          }).join('')}
+          </div>`
+        : `<div class="info-box" style="margin-top:6px">ไม่มีอะไรเปลี่ยนแปลง — ค่านาทีสายทั้งหมดตรงกับที่มีอยู่แล้ว</div>`;
+
+      document.getElementById('import-body').innerHTML = `
+      <div class="otsect" style="margin-top:6px"><h4>ตรวจก่อนบันทึก</h4>
+        <div class="srow"><span class="sl">พนักงาน</span><span class="sv">${emps.join(', ') || '—'}</span></div>
+        <div class="srow"><span class="sl">ช่วงวันที่</span><span class="sv">${dates[0]} → ${dates[dates.length - 1]}</span></div>
+        <div class="srow"><span class="sl">อ่านได้</span><span class="sv">${rows.length} วัน (${months.length} เดือน)</span></div>
+        <div class="srow"><span class="sl">จะเปลี่ยนแปลง</span><span class="sv"><strong>${changed.length}</strong> วัน · เท่าเดิม ${rows.length - changed.length} วัน</span></div>
+      </div>
+      ${overwrite.length
+          ? `<div class="info-box" style="margin-top:10px;background:var(--red-lt)">⚠️ มี ${overwrite.length} วันที่จะ “เขียนทับ” ค่าสายเดิมที่ไม่ใช่ 0 (แถวสีแดงด้านล่าง) — ตรวจให้ดีก่อนยืนยัน</div>`
+          : ''}
+      ${changedHtml}
+      <div class="info-box" style="margin-top:10px">กด “ยกเลิก” ได้ตลอด — ข้อมูลเดิมจะไม่ถูกแก้จนกว่าจะกดยืนยัน · บันทึกเฉพาะค่านาทีสาย ไม่กระทบ Worked / OT / Leave</div>
+      <div class="mactions">
+        <button class="btn btn-c" onclick="closeImport()">ยกเลิก</button>
+        <button class="btn btn-p" id="import-apply-btn" onclick="applyImport()" ${changed.length === 0 ? 'disabled' : ''}>ยืนยันบันทึก ${changed.length} วัน</button>
+      </div>`;
+      document.getElementById('importbg').classList.add('open');
+    }
+
+    function closeImport() {
+      document.getElementById('importbg').classList.remove('open');
+      pendingImport = null;
+      importDiff = null;
+    }
+    function importBgClick(e) { if (e.target === document.getElementById('importbg')) closeImport(); }
+
+    async function writeLateToMonth(key, dayMap, curKey, onlyIfExists) {
+      if (key === curKey) {
+        // current month: update in-memory; the caller persists it via save()
+        for (const ds in dayMap) {
+          if (!mdata.days[ds]) mdata.days[ds] = defDay(ds);
+          mdata.days[ds].lateMin = dayMap[ds];
+        }
+        return;
+      }
+      const ref = userMonths().doc(key);
+      const snap = await ref.get();
+      if (!snap.exists && onlyIfExists) return; // don't create a phantom "recorded" month
+      const data = snap.exists ? snap.data() : { days: {} };
+      if (!data.days) data.days = {};
+      for (const ds in dayMap) {
+        if (!data.days[ds]) data.days[ds] = defDay(ds);
+        data.days[ds].lateMin = dayMap[ds];
+      }
+      await ref.set(data);
+    }
+
+    async function applyImport() {
+      if (!pendingImport || !pendingImport.length) { closeImport(); return; }
+      // Only write the days that actually change — unchanged months are never touched.
+      const changedSet = new Set((importDiff || []).filter(d => d.changed).map(d => d.ds));
+      const toWrite = pendingImport.filter(r => changedSet.has(r.ds));
+      if (!toWrite.length) { closeImport(); showToast('ไม่มีอะไรต้องบันทึก'); return; }
+
+      const btn = document.getElementById('import-apply-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'กำลังบันทึก…'; }
+
+      const { primary, secondary } = buildImportWrites(toWrite);
+      const curKey = monthKey(Y, M);
+      try {
+        for (const key of Object.keys(primary)) await writeLateToMonth(key, primary[key], curKey, false);
+        for (const key of Object.keys(secondary)) await writeLateToMonth(key, secondary[key], curKey, true);
+        if (primary[curKey] || secondary[curKey]) { renderAll(); save(); }
+      } catch (e) {
+        if (btn) { btn.disabled = false; btn.textContent = `ยืนยันบันทึก ${toWrite.length} วัน`; }
+        showToast('บันทึกไม่สำเร็จ: ' + ((e && e.message) || e));
+        return;
+      }
+      const n = toWrite.length;
+      closeImport();
+      showToast(`บันทึกแล้ว: ${n} วันที่เปลี่ยนแปลง ✓`);
+    }
+
     // ── TABS ───────────────────────────────────────────────────────────────────
     function switchTab(tab) {
       ['ot', 'att'].forEach(t => {
@@ -3038,7 +3250,7 @@
     // ── KEYBOARD ───────────────────────────────────────────────────────────────
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
-        closeModal(); closeSettings(); closePicker(); closeLeave();
+        closeModal(); closeSettings(); closePicker(); closeLeave(); closeImport();
         if (document.getElementById('year-screen').style.display !== 'none') closeYearView();
       }
     });
