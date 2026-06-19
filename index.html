@@ -1540,6 +1540,50 @@
       border-color: var(--red);
       color: var(--red)
     }
+
+    /* ── LEAVE DETAIL ────────────────────────────────────────────────────────── */
+    .leave-detail {
+      margin: 2px 0 12px;
+      padding: 10px 12px;
+      border: 1.5px solid var(--leave-bd);
+      border-radius: 8px;
+      background: var(--leave-bg)
+    }
+
+    .leave-times {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end
+    }
+
+    .leave-fld {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: .68rem;
+      font-weight: 700;
+      color: var(--gray);
+      text-transform: uppercase;
+      letter-spacing: .04em
+    }
+
+    .leave-fld .otinp {
+      max-width: 120px;
+      text-align: left
+    }
+
+    .leave-fld input[type=number].otinp {
+      max-width: 72px;
+      text-align: right
+    }
+
+    #leave-tot {
+      color: var(--leave-bd);
+      border-top: none;
+      padding-top: 6px;
+      font-weight: 600
+    }
   </style>
 </head>
 
@@ -1681,8 +1725,8 @@
                 recorded
               </div>
               <div class="leg-item">
-                <div class="leg-dot" style="background:var(--leave-bg);border-left:3px solid var(--leave-bd)"></div>Leave (salary kept,
-                no travel)
+                <div class="leg-dot" style="background:var(--leave-bg);border-left:3px solid var(--leave-bd)"></div>Leave (full day,
+                salary kept)
               </div>
               <div class="leg-item">
                 <span class="late-badge" style="margin:0">⏰m</span>Late (deducted)
@@ -1795,8 +1839,8 @@
         <textarea id="leave-note" class="note-inp" placeholder="Leave reason..." rows="2"></textarea>
       </div>
       <div class="info-box" style="margin-top:10px">
-        ℹ️ Leave days keep your full salary but have no travel allowance. Weekends and holidays within the range are
-        skipped.
+        ℹ️ This applies full-day leave (9h) to each weekday in the range — salary kept, no travel allowance. For a
+        half day, set the hours on the day itself. Weekends and holidays within the range are skipped.
       </div>
       <div class="mactions">
         <button class="btn btn-c" onclick="closeLeave()">Cancel</button>
@@ -1842,6 +1886,8 @@
     // OT period is 25th prev – 24th curr; if today >= 25 we're in the next period
     if (_now.getDate() >= 25) { M++; if (M > 12) { M = 1; Y++; } }
     let editDate = null;
+    // Day's worked/leave state captured when the modal opens, so clearing leave can restore it
+    let _editWorkedOrig = true, _editHadLeave = false;
     let mdata = {};
 
     // ── DARK MODE ──────────────────────────────────────────────────────────────
@@ -2077,12 +2123,20 @@
 
     function defDay(ds) {
       const dow = jsDate(ds).getDay();
-      return { worked: dow >= 1 && dow <= 5, isHoliday: false, satAbsent: false, sunAbsent: false, leave: false, ot: { "1": 0, "1.5": 0, "2": 0, "3": 0 }, lateMin: 0, note: '' };
+      return { worked: dow >= 1 && dow <= 5, isHoliday: false, satAbsent: false, sunAbsent: false, leave: false, leaveHours: 0, leaveStart: '', leaveEnd: '', ot: { "1": 0, "1.5": 0, "2": 0, "3": 0 }, lateMin: 0, note: '' };
     }
 
     function gd(ds) {
       if (!mdata.days[ds]) mdata.days[ds] = defDay(ds);
       return mdata.days[ds];
+    }
+
+    // Leave hours for a day. Legacy days stored before hour-tracking have
+    // leave === true but no leaveHours — treat those as a full day (9h).
+    function leaveHrsOf(d) {
+      const h = Number(d.leaveHours) || 0;
+      if (h > 0) return h;
+      return d.leave ? 9 : 0;
     }
 
     // ── DATE HELPERS ───────────────────────────────────────────────────────────
@@ -2124,11 +2178,14 @@
       const otHrs = Object.values(otR).reduce((a, b) => a + b, 0);
 
       let tDays = 0, absentDays = 0, totalWorkDays = 0, totalLateMin = 0;
+      let leaveHrs = 0, leaveDays = 0;
       for (const ds of ad) {
         if (!ds.startsWith(pfx)) continue;
         const dow = jsDate(ds).getDay();
         const d = gd(ds);
         totalLateMin += Number(d.lateMin) || 0;
+        const lh = leaveHrsOf(d);
+        if (lh > 0) { leaveHrs += lh; leaveDays++; }
         // Weekdays (Mon–Fri): count as workable; absent if not worked, not holiday, and not on leave
         if (dow >= 1 && dow <= 5 && !d.isHoliday) {
           if (!d.leave) totalWorkDays++;
@@ -2161,7 +2218,7 @@
       const lateDeduction = totalLateMin * (BASE / 30 / 9 / 60);
       const otherDeductionsPay = OTHER_DEDUCTIONS.reduce((s, od) => s + (Number(od.amount) || 0), 0);
       const net = gross - SSF - lateDeduction - otherDeductionsPay;
-      return { BASE, absDeduction, absentDays, tPay, tDays, otPay, otR, otHrs, SSF, totalLateMin, lateDeduction, otherIncomePay, otherDeductionsPay, gross, net };
+      return { BASE, absDeduction, absentDays, tPay, tDays, otPay, otR, otHrs, leaveHrs, leaveDays, SSF, totalLateMin, lateDeduction, otherIncomePay, otherDeductionsPay, gross, net };
     }
 
     // ── FORMAT ─────────────────────────────────────────────────────────────────
@@ -2190,7 +2247,10 @@
         if (d.satAbsent) return 'bg-sat-absent';
         return 'bg-sat';
       }
-      if (dow >= 1 && dow <= 5 && d.leave) return 'bg-leave';
+      if (dow >= 1 && dow <= 5 && leaveHrsOf(d) > 0) {
+        // Full-day leave reads as a day off; a partial leave still worked stays a worked day (with a badge).
+        if (leaveHrsOf(d) >= 9 || !d.worked) return 'bg-leave';
+      }
       return d.worked ? 'bg-worked' : 'bg-absent';
     }
 
@@ -2233,7 +2293,8 @@
         const noteDot = hasNote ? `<div class="note-dot" title="${d.note.trim()}"></div>` : '';
 
         const holBadge = d.isHoliday ? `<div class="hol-badge">Holiday</div>` : '';
-        const leaveBadge = (!d.isHoliday && dow >= 1 && dow <= 5 && d.leave) ? `<div class="leave-badge">Leave</div>` : '';
+        const dLeaveHrs = leaveHrsOf(d);
+        const leaveBadge = (!d.isHoliday && dow >= 1 && dow <= 5 && dLeaveHrs > 0) ? `<div class="leave-badge">Leave ${dLeaveHrs}h</div>` : '';
         const lateBadge = (Number(d.lateMin) > 0) ? `<div class="late-badge" title="มาสาย ${d.lateMin} นาที">⏰${d.lateMin}m</div>` : '';
         const mNote = isPrev
           ? `<div class="dmonth">${MONTHS[parseInt(ds.split('-')[1]) - 1].slice(0, 3)}</div>` : '';
@@ -2275,6 +2336,11 @@
           ? otRows + `<div class="srow" style="font-style:italic"><span class="sl" style="font-size:.72rem">Rate: ${hrate}</span></div>`
           : `<div class="srow"><span class="sl">No OT recorded</span><span class="sv">฿0.00</span></div>`}
 
+    <div class="ssect">Leave${c.leaveHrs > 0 ? ` — <span id="leave-hrs-badge">${c.leaveHrs}</span>h total` : ''}</div>
+    ${c.leaveHrs > 0
+          ? `<div class="srow"><span class="sl">${c.leaveDays} day${c.leaveDays !== 1 ? 's' : ''} on leave</span><span class="sv">${c.leaveHrs}h</span></div>`
+          : `<div class="srow"><span class="sl">No leave taken</span><span class="sv">0h</span></div>`}
+
     <div class="ssect">Deductions</div>
     <div class="srow"><span class="sl">SSF</span><span class="sv neg">−฿${fmt(c.SSF)}</span></div>
     ${c.absentDays > 0
@@ -2305,12 +2371,24 @@
         countUpEl(otBadge, _prevOtHrs, c.otHrs, 500, n => (Math.round(n * 10) / 10).toString());
       }
       _prevOtHrs = c.otHrs;
+
+      // Animate leave total hours when value changes
+      const leaveBadge = document.getElementById('leave-hrs-badge');
+      if (leaveBadge && _prevLeaveHrs !== null && _prevLeaveHrs !== c.leaveHrs) {
+        leaveBadge.classList.remove('ot-flash');
+        void leaveBadge.offsetWidth;
+        leaveBadge.classList.add('ot-flash');
+        countUpEl(leaveBadge, _prevLeaveHrs, c.leaveHrs, 500, n => (Math.round(n * 10) / 10).toString());
+      }
+      _prevLeaveHrs = c.leaveHrs;
     }
 
     // ── MODAL ──────────────────────────────────────────────────────────────────
     function openModal(ds) {
       editDate = ds;
       const d = gd(ds);
+      _editWorkedOrig = d.worked;
+      _editHadLeave = leaveHrsOf(d) > 0;
       const dow = jsDate(ds).getDay();
       const isSun = dow === 0, isSat = dow === 6, isWkd = !isSun && !isSat;
       const inOT = otDates(Y, M).includes(ds);
@@ -2336,14 +2414,30 @@
       if (isWkd || isSat) {
         html += `<div class="trow" id="wrow"${d.isHoliday ? ' style="display:none"' : ''}>
       <div><div class="tl">✅ Worked today</div><div class="td">${isWkd ? `Mon–Fri regular hours → +฿${TRAVEL} travel allowance` : `Mark as worked this Saturday → +฿${TRAVEL} travel allowance`}</div></div>
-      <label class="sw"><input type="checkbox" id="chk-wrk" ${d.worked && !d.leave ? 'checked' : ''}><span class="sw-sl"></span></label>
+      <label class="sw"><input type="checkbox" id="chk-wrk" ${d.worked ? 'checked' : ''}><span class="sw-sl"></span></label>
     </div>`;
       }
 
       if (isWkd) {
+        const lh = leaveHrsOf(d);
+        const isLeave = lh > 0;
         html += `<div class="trow" id="lrow"${d.isHoliday ? ' style="display:none"' : ''}>
-      <div><div class="tl">🏖️ On Leave</div><div class="td">Salary kept – no travel allowance, not counted as absent</div></div>
-      <label class="sw"><input type="checkbox" id="chk-leave" ${d.leave ? 'checked' : ''}><span class="sw-sl"></span></label>
+      <div><div class="tl">🏖️ On Leave</div><div class="td">Record paid leave by the hour — full day = 9h, half day = 4h</div></div>
+      <label class="sw"><input type="checkbox" id="chk-leave" ${isLeave ? 'checked' : ''}><span class="sw-sl"></span></label>
+    </div>
+    <div class="leave-detail" id="leave-detail"${(isLeave && !d.isHoliday) ? '' : ' style="display:none"'}>
+      <div class="sat-presets">
+        <span class="preset-label">⚡ Quick:</span>
+        <button class="preset-btn" onclick="leavePreset('half');return false"><span>Half day</span><small>4h</small></button>
+        <button class="preset-btn" onclick="leavePreset('full');return false"><span>Full day</span><small>9h</small></button>
+        <button class="preset-btn preset-clear" onclick="leavePreset('clear');return false">✕ Clear</button>
+      </div>
+      <div class="leave-times">
+        <label class="leave-fld">Start<input type="time" class="otinp" id="leave-start-t" value="${d.leaveStart || ''}"></label>
+        <label class="leave-fld">End<input type="time" class="otinp" id="leave-end-t" value="${d.leaveEnd || ''}"></label>
+        <label class="leave-fld">Hours<input type="number" class="otinp" id="leave-hours" value="${lh || ''}" min="0" max="9" step="0.5" placeholder="0" oninput="updLeave()"></label>
+      </div>
+      <div class="ottotal" id="leave-tot"></div>
     </div>`;
       }
 
@@ -2431,6 +2525,9 @@
         if (sr) sr.style.display = chkHol.checked ? 'none' : '';
         const lr = document.getElementById('lrow');
         if (lr) lr.style.display = chkHol.checked ? 'none' : '';
+        const ld = document.getElementById('leave-detail');
+        const cle = document.getElementById('chk-leave');
+        if (ld) ld.style.display = (chkHol.checked || !cle || !cle.checked) ? 'none' : '';
         const ltr = document.getElementById('laterow');
         if (ltr) ltr.style.display = chkHol.checked ? 'none' : '';
         updOT();
@@ -2438,13 +2535,20 @@
 
       const chkWrk = document.getElementById('chk-wrk');
       const chkLeave = document.getElementById('chk-leave');
-      if (chkWrk && chkLeave) {
-        chkWrk.addEventListener('change', () => { if (chkWrk.checked) chkLeave.checked = false; });
-        chkLeave.addEventListener('change', () => { if (chkLeave.checked) chkWrk.checked = false; });
-      }
+      if (chkLeave) chkLeave.addEventListener('change', () => {
+        // New leave defaults to a full day; unchecking clears it
+        leavePreset(chkLeave.checked ? 'full' : 'clear');
+      });
+      if (chkWrk) chkWrk.addEventListener('change', () => {
+        // "Worked" cancels a full-day leave (mutually exclusive); partial leave coexists
+        const he = document.getElementById('leave-hours');
+        const h = he ? (parseFloat(he.value) || 0) : 0;
+        if (chkWrk.checked && h >= 9) leavePreset('clear');
+      });
 
       document.getElementById('mbg').classList.add('open');
       updOT();
+      updLeave();
     }
 
     function satPreset(h1, h15, h2, h3) {
@@ -2470,12 +2574,74 @@
       if (te) te.textContent = total > 0 ? `OT subtotal: ฿${fmt(total)}` : '';
     }
 
+    // Quick-fill leave: 'full' (9h, day off), 'half' (4h, still worked), 'clear' (none)
+    function leavePreset(kind) {
+      const det = document.getElementById('leave-detail');
+      const chkLeave = document.getElementById('chk-leave');
+      const chkWrk = document.getElementById('chk-wrk');
+      const hoursEl = document.getElementById('leave-hours');
+      const startEl = document.getElementById('leave-start-t');
+      const endEl = document.getElementById('leave-end-t');
+      if (kind === 'clear') {
+        if (hoursEl) hoursEl.value = '';
+        if (startEl) startEl.value = '';
+        if (endEl) endEl.value = '';
+        if (chkLeave) chkLeave.checked = false;
+        if (det) det.style.display = 'none';
+        // If the day was a leave day, clearing reverts it to a normal worked weekday;
+        // otherwise restore whatever worked/absent state it had when the modal opened.
+        if (chkWrk) chkWrk.checked = _editHadLeave ? true : _editWorkedOrig;
+        updLeave();
+        return;
+      }
+      if (chkLeave) chkLeave.checked = true;
+      if (det) det.style.display = '';
+      if (kind === 'full') {
+        if (hoursEl) hoursEl.value = 9;
+        if (startEl) startEl.value = '08:30';
+        if (endEl) endEl.value = '18:30';
+        if (chkWrk) chkWrk.checked = false; // full day off
+      } else if (kind === 'half') {
+        if (hoursEl) hoursEl.value = 4;
+        if (startEl) startEl.value = '08:30';
+        if (endEl) endEl.value = '12:30';
+        if (chkWrk) chkWrk.checked = true; // worked the other half
+      }
+      updLeave();
+    }
+
+    function updLeave() {
+      const hoursEl = document.getElementById('leave-hours');
+      if (!hoursEl) return;
+      let h = parseFloat(hoursEl.value);
+      if (isNaN(h)) h = 0;
+      if (h > 9) { h = 9; hoursEl.value = 9; }
+      if (h < 0) { h = 0; hoursEl.value = ''; }
+      const chkWrk = document.getElementById('chk-wrk');
+      if (chkWrk && h >= 9) chkWrk.checked = false; // a full day off can't be worked
+      const tot = document.getElementById('leave-tot');
+      if (tot) tot.textContent = h > 0
+        ? `Leave: ${h}h — ${h >= 9 ? 'full day, not counted as worked' : 'partial, still counts as worked'}`
+        : '';
+    }
+
     function saveDay() {
       if (!editDate) return;
       const d = gd(editDate);
       const ch = document.getElementById('chk-hol'); if (ch) d.isHoliday = ch.checked;
-      const cl = document.getElementById('chk-leave'); if (cl) { d.leave = cl.checked; if (d.leave) d.worked = false; }
-      const cw = document.getElementById('chk-wrk'); if (cw) { d.worked = cw.checked; if (d.worked) d.leave = false; }
+      // Leave (weekday only): hours are the source of truth; a full day (9h) means not worked.
+      const lhEl = document.getElementById('leave-hours');
+      if (lhEl) {
+        let lh = parseFloat(lhEl.value) || 0;
+        if (lh < 0) lh = 0;
+        if (lh > 9) lh = 9;
+        if (d.isHoliday) lh = 0; // a holiday can't also be leave
+        d.leaveHours = lh;
+        d.leave = lh > 0;
+        const se = document.getElementById('leave-start-t'); d.leaveStart = (lh > 0 && se) ? se.value : '';
+        const ee = document.getElementById('leave-end-t'); d.leaveEnd = (lh > 0 && ee) ? ee.value : '';
+      }
+      const cw = document.getElementById('chk-wrk'); if (cw) d.worked = (Number(d.leaveHours) >= 9) ? false : cw.checked;
       const csa = document.getElementById('chk-sat-absent'); if (csa) d.satAbsent = csa.checked;
       const csu = document.getElementById('chk-sun-absent'); if (csu) d.sunAbsent = csu.checked;
       const lm = document.getElementById('late-min'); if (lm) d.lateMin = parseFloat(lm.value) || 0;
@@ -2526,6 +2692,9 @@
           const d = gd(ds);
           if (!d.isHoliday) {
             d.leave = true;
+            d.leaveHours = 9;
+            d.leaveStart = '08:30';
+            d.leaveEnd = '18:30';
             d.worked = false;
             if (note) d.note = note;
             mdata.days[ds] = d;
@@ -2564,7 +2733,7 @@
 
     // ── ANIMATION HELPERS ──────────────────────────────────────────────────────
     let gridAnimDir = 0;
-    let _prevNet = null, _prevOtHrs = null;
+    let _prevNet = null, _prevOtHrs = null, _prevLeaveHrs = null;
 
     function cellClick(ds, e) {
       const cell = e.target.closest('.ccell');
