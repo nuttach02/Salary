@@ -2598,13 +2598,13 @@
       if (det) det.style.display = '';
       if (kind === 'full') {
         if (hoursEl) hoursEl.value = 9;
-        if (startEl) startEl.value = '08:30';
-        if (endEl) endEl.value = '18:30';
+        if (startEl) startEl.value = '08:00';
+        if (endEl) endEl.value = '18:00';
         if (chkWrk) chkWrk.checked = false; // full day off
       } else if (kind === 'half') {
         if (hoursEl) hoursEl.value = 4;
-        if (startEl) startEl.value = '08:30';
-        if (endEl) endEl.value = '12:30';
+        if (startEl) startEl.value = '08:00';
+        if (endEl) endEl.value = '12:00';
         if (chkWrk) chkWrk.checked = true; // worked the other half
       }
       updLeave();
@@ -2693,8 +2693,8 @@
           if (!d.isHoliday) {
             d.leave = true;
             d.leaveHours = 9;
-            d.leaveStart = '08:30';
-            d.leaveEnd = '18:30';
+            d.leaveStart = '08:00';
+            d.leaveEnd = '18:00';
             d.worked = false;
             if (note) d.note = note;
             mdata.days[ds] = d;
