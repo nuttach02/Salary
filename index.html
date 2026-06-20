@@ -3186,6 +3186,7 @@
           ds, latmin,
           absenthrs: parseFloat(txt("[id$='gvlblAbsenthrs']")) || 0, // hours of absence (decimal)
           leacod: txt("[id$='gvlblLeacod']"),                        // Take Leave: 'Y' / 'N'
+          holcod: num("[id$='gvhdHolcod']"),                         // 1=workday(white) 2=weekend(pink) 3=public holiday(yellow)
           // OT minutes per rate bucket, from the hidden inputs (visible spans can be blank on
           // recent/pending days). Index 0→1×, 1→1.5×, 2→2×, 3→3×.
           otMin: [0, 1, 2, 3].map(i => num(`[id$='gvhdMin${i}']`)),
@@ -3214,17 +3215,20 @@
       const m = r.otMin || [0, 0, 0, 0];
       const h = n => Math.round(n / 60 * 100) / 100;
       const ot = { "1": h(m[0]), "1.5": h(m[1]), "2": h(m[2]), "3": h(m[3]) };
+      // Public holiday (yellow rows, Holcod 3). Additive: only ever mark a holiday,
+      // never auto-clear one — so manually-added holidays survive a re-import.
+      const hol = Number(r.holcod) === 3 ? { isHoliday: true } : {};
       if (A > 0) {
-        return { kind: 'absent', lateMin: L, leaveHours: 0, absentHours: A, ot };
+        return { kind: 'absent', lateMin: L, leaveHours: 0, absentHours: A, ot, ...hol };
       }
       if (leaveY) {
         if (!hasSwipe) {
-          return { kind: 'leave', lateMin: 0, leaveHours: 9, absentHours: 0, worked: false, ot };
+          return { kind: 'leave', lateMin: 0, leaveHours: 9, absentHours: 0, worked: false, ot, ...hol };
         }
         const lh = Math.max(0, Math.ceil((L - 30) / 30)) * 0.5;
-        return { kind: 'leave', lateMin: 0, leaveHours: lh, absentHours: 0, worked: true, ot };
+        return { kind: 'leave', lateMin: 0, leaveHours: lh, absentHours: 0, worked: true, ot, ...hol };
       }
-      return { kind: 'late', lateMin: L, leaveHours: 0, absentHours: 0, ot };
+      return { kind: 'late', lateMin: L, leaveHours: 0, absentHours: 0, ot, ...hol };
     }
 
     const OT_RATES = ["1", "1.5", "2", "3"];
@@ -3237,6 +3241,7 @@
       if ('leaveHours' in patch) { const o = leaveHrsOf(cur); if (o !== patch.leaveHours) changes.push({ label: 'ลา(ชม.)', old: o, new: patch.leaveHours }); }
       if ('absentHours' in patch) { const o = absentHrsOf(cur); if (o !== patch.absentHours) changes.push({ label: 'ขาด(ชม.)', old: o, new: patch.absentHours }); }
       if ('worked' in patch) { const o = !!cur.worked; if (o !== !!patch.worked) changes.push({ label: 'ทำงาน', old: o ? '✓' : '✗', new: patch.worked ? '✓' : '✗' }); }
+      if ('isHoliday' in patch) { const o = !!cur.isHoliday; if (o !== !!patch.isHoliday) changes.push({ label: 'วันหยุด', old: o ? '✓' : '✗', new: patch.isHoliday ? '✓' : '✗' }); }
       if ('ot' in patch) {
         const co = cur.ot || {};
         const diff = OT_RATES.some(r => (Number(co[r]) || 0) !== (Number(patch.ot[r]) || 0));
@@ -3256,6 +3261,7 @@
         else if (patch.leaveHours === 0) { d.leaveStart = ''; d.leaveEnd = ''; }
       }
       if ('worked' in patch) d.worked = patch.worked;
+      if ('isHoliday' in patch) d.isHoliday = patch.isHoliday;
       if ('ot' in patch) d.ot = { "1": patch.ot["1"], "1.5": patch.ot["1.5"], "2": patch.ot["2"], "3": patch.ot["3"] };
     }
 
@@ -3356,6 +3362,7 @@
       const overwrite = changed.filter(hasOverwrite);
       const cnt = k => changed.filter(e => e.kind === k).length;
       const otCnt = changed.filter(e => e.changes.some(c => c.label === 'OT(ชม.)')).length;
+      const holCnt = changed.filter(e => e.changes.some(c => c.label === 'วันหยุด')).length;
 
       const changedHtml = changed.length
         ? `<div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-top:6px">
@@ -3376,7 +3383,7 @@
         <div class="srow"><span class="sl">ช่วงวันที่</span><span class="sv">${dates[0]} → ${dates[dates.length - 1]}</span></div>
         <div class="srow"><span class="sl">อ่านได้</span><span class="sv">${rows.length} วัน (${months.length} เดือน)</span></div>
         <div class="srow"><span class="sl">จะเปลี่ยนแปลง</span><span class="sv"><strong>${changed.length}</strong> วัน · เท่าเดิม ${rows.length - changed.length} วัน</span></div>
-        <div class="srow"><span class="sl">แยกประเภท</span><span class="sv">ลา ${cnt('leave')} · ขาด ${cnt('absent')} · สาย ${cnt('late')} · OT ${otCnt}</span></div>
+        <div class="srow"><span class="sl">แยกประเภท</span><span class="sv">ลา ${cnt('leave')} · ขาด ${cnt('absent')} · สาย ${cnt('late')} · OT ${otCnt} · วันหยุด ${holCnt}</span></div>
       </div>
       ${overwrite.length
           ? `<div class="info-box" style="margin-top:10px;background:var(--red-lt)">⚠️ มี ${overwrite.length} วันที่จะ “เขียนทับ” ค่าเดิมที่ไม่ใช่ 0 (แถวสีแดง) — ตรวจให้ดีก่อนยืนยัน</div>`
