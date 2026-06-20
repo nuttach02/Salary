@@ -1857,10 +1857,23 @@
                 <span class="late-badge" style="margin:0">⏰m</span>Late (deducted)
               </div>
             </div>
-            <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:6px">
               <input type="file" id="import-file" accept=".html,.htm" style="display:none" onchange="handleImportFile(event)">
+              <button class="btn btn-c" onclick="openImportPaste()" style="font-size:.78rem;padding:5px 14px">📋 วางจากบริษัท</button>
               <button class="btn btn-p" onclick="document.getElementById('import-file').click()" style="font-size:.78rem;padding:5px 14px">⬆️ Import HR file</button>
             </div>
+            <details style="font-size:.72rem;color:var(--muted);margin-bottom:8px">
+              <summary style="cursor:pointer;user-select:none">⚡ ดึงข้อมูลตรงจากเว็บบริษัท (ติดตั้ง Bookmarklet ครั้งเดียว)</summary>
+              <div style="margin-top:8px;line-height:1.7">
+                <div style="margin-bottom:6px"><strong>1.</strong> ลากปุ่มนี้ไปวางที่ <strong>แถบ Bookmark</strong> ของเบราว์เซอร์:
+                  <a id="bm-link" href="javascript:(function(){var t=document.getElementById('gvAttn');if(!t){alert('ไม่พบตาราง #gvAttn ในหน้านี้');return;}t.querySelectorAll('input').forEach(function(el){try{el.setAttribute('value',el.value);}catch(e){}});var h=t.outerHTML,ok=false;try{var a=document.createElement('textarea');a.value=h;a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.select();ok=document.execCommand('copy');document.body.removeChild(a);}catch(e){}if(ok){alert('คัดลอกแล้ว — ไปที่ salaryot กดวาง (Ctrl+V)');}else if(navigator.clipboard){navigator.clipboard.writeText(h).then(function(){alert('คัดลอกแล้ว — ไปที่ salaryot กดวาง');},function(){alert('คัดลอกไม่สำเร็จ');});}else{alert('คัดลอกไม่สำเร็จ');}})();" onclick="return false" style="display:inline-block;background:var(--blue);color:#fff;padding:3px 10px;border-radius:6px;text-decoration:none;font-weight:600;margin-left:4px">📋 ดึง attendance → salaryot</a>
+                  <button class="btn btn-c" onclick="copyBookmarklet()" style="font-size:.7rem;padding:2px 8px;margin-left:4px">ก็อปโค้ด</button>
+                </div>
+                <div><strong>2.</strong> เปิดหน้า attendance บนเว็บบริษัท (อยู่บน WiFi บริษัท + ล็อกอินแล้ว)</div>
+                <div><strong>3.</strong> คลิก bookmark นั้น → ข้อมูลถูกคัดลอกอัตโนมัติ</div>
+                <div><strong>4.</strong> กลับมาที่นี่ กด <strong>📋 วางจากบริษัท</strong> แล้ววาง (Ctrl+V) → ตรวจสอบ → ยืนยัน</div>
+              </div>
+            </details>
             <div class="cal-grid" id="ot-grid"></div>
           </div>
           <div id="pane-att" class="tab-pane">
@@ -3290,20 +3303,65 @@
       input.value = ''; // allow re-selecting the same file
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = async () => {
-        let rows;
-        try { rows = parseAttendanceHtml(String(reader.result)); }
-        catch (e) { showToast('อ่านไฟล์ไม่สำเร็จ'); return; }
-        if (rows === null) { showToast('ไม่พบตาราง attendance (#gvAttn) ในไฟล์'); return; }
-        if (!rows.length) { showToast('ไม่พบข้อมูลวันในไฟล์'); return; }
-        pendingImport = rows;
-        showToast('กำลังเทียบกับข้อมูลเดิม…');
-        try { await prepareImportDiff(); }
-        catch (e) { showToast('อ่านข้อมูลเดิมไม่สำเร็จ: ' + ((e && e.message) || e)); return; }
-        openImportPreview();
-      };
+      reader.onload = () => ingestImportHtml(String(reader.result));
       reader.onerror = () => showToast('อ่านไฟล์ไม่สำเร็จ');
       reader.readAsText(file);
+    }
+
+    // Parse attendance HTML — from an uploaded file OR pasted from the company page
+    // (the bookmarklet copies #gvAttn there) — then classify, diff against current
+    // data, and open the preview. Shared by both paths; all parsing stays in
+    // parseAttendanceHtml so the bookmarklet can remain a dumb copy of #gvAttn.
+    async function ingestImportHtml(htmlText) {
+      let rows;
+      try { rows = parseAttendanceHtml(String(htmlText)); }
+      catch (e) { showToast('อ่านข้อมูลไม่สำเร็จ'); return; }
+      if (rows === null) { showToast('ไม่พบตาราง attendance (#gvAttn) ในข้อมูล'); return; }
+      if (!rows.length) { showToast('ไม่พบข้อมูลวัน'); return; }
+      pendingImport = rows;
+      showToast('กำลังเทียบกับข้อมูลเดิม…');
+      try { await prepareImportDiff(); }
+      catch (e) { showToast('อ่านข้อมูลเดิมไม่สำเร็จ: ' + ((e && e.message) || e)); return; }
+      openImportPreview();
+    }
+
+    // Paste step inside the import modal: the user pastes the #gvAttn HTML the
+    // bookmarklet copied from the company page; "ตรวจสอบ" feeds it to ingestImportHtml,
+    // which re-renders this same #import-body into the normal diff preview.
+    function openImportPaste() {
+      document.getElementById('import-body').innerHTML = `
+      <div class="otsect" style="margin-top:6px"><h4>วางข้อมูลจากเว็บบริษัท</h4>
+        <div class="info-box" style="margin-bottom:8px">เปิดหน้า attendance บนเว็บบริษัท → คลิก bookmarklet เพื่อคัดลอก → วางในช่องนี้ (Ctrl+V) แล้วกด “ตรวจสอบ”</div>
+        <textarea id="import-paste" class="note-inp" rows="6" placeholder="วางข้อมูลที่นี่ (Ctrl+V)…"></textarea>
+      </div>
+      <div class="mactions">
+        <button class="btn btn-c" onclick="closeImport()">ยกเลิก</button>
+        <button class="btn btn-p" onclick="submitImportPaste()">ตรวจสอบ</button>
+      </div>`;
+      document.getElementById('importbg').classList.add('open');
+      setTimeout(() => { const el = document.getElementById('import-paste'); if (el) el.focus(); }, 30);
+    }
+
+    async function submitImportPaste() {
+      const el = document.getElementById('import-paste');
+      const text = el ? el.value : '';
+      if (!text.trim()) { showToast('ยังไม่ได้วางข้อมูล'); return; }
+      await ingestImportHtml(text);
+    }
+
+    // Copy the bookmarklet code (read straight from the install link's href, the
+    // single source of truth) for users whose browser blocks drag-to-bookmark.
+    function copyBookmarklet() {
+      const link = document.getElementById('bm-link');
+      if (!link) return;
+      const href = link.href;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(href).then(
+          () => showToast('คัดลอกโค้ดแล้ว — สร้าง bookmark ใหม่แล้ววาง URL นี้'),
+          () => showToast('คัดลอกไม่สำเร็จ — ลากปุ่มไปที่แถบ bookmark แทน'));
+      } else {
+        showToast('ลากปุ่มไปที่แถบ bookmark แทน');
+      }
     }
 
     // Classify each parsed day and compare against its current state (from its own
