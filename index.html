@@ -2055,7 +2055,7 @@
   <div class="mbg" id="importbg" onclick="importBgClick(event)">
     <div class="modal" style="width:380px">
       <div class="mhdr">
-        <h3>⬆️ Import Lateness</h3>
+        <h3>⬆️ Import Attendance</h3>
         <button class="mcls" onclick="closeImport()">✕</button>
       </div>
       <div id="import-body"></div>
@@ -3172,7 +3172,52 @@
 
     // ── IMPORT (HR attendance HTML) ──────────────────────────────────────────────
     let pendingImport = null; // parsed rows awaiting confirmation
-    let importDiff = null;    // per-day { ds, kind, patch, changes[], changed } for the preview
+    let importDiff = null;    // per-day { ds, kind, patch, keys, curByKey, fpatch, changes[], changed }
+
+    // Import category filter — which kinds of data to actually apply. Each category maps
+    // to the patch keys it owns; unchecked categories are stripped from every day's patch
+    // before the diff/preview and before writing (so they're never touched).
+    const IMPORT_CATS = {
+      late:    { label: 'สาย',     keys: ['lateMin'] },
+      leave:   { label: 'ลา',      keys: ['leaveHours', 'worked'] },
+      absent:  { label: 'ขาด',     keys: ['absentHours'] },
+      ot:      { label: 'OT',      keys: ['ot'] },
+      holiday: { label: 'วันหยุด', keys: ['isHoliday'] }
+    };
+    let importCats = { late: true, leave: true, absent: true, ot: true, holiday: true };
+
+    // Strip patch keys whose category is unchecked. kind always rides along (diffPatch
+    // ignores it). Returns a new patch; the original full patch is kept for re-filtering.
+    function filterPatch(patch) {
+      const out = { kind: patch.kind };
+      for (const cat in IMPORT_CATS) {
+        if (!importCats[cat]) continue;
+        IMPORT_CATS[cat].keys.forEach(k => { if (k in patch) out[k] = patch[k]; });
+      }
+      return out;
+    }
+
+    // Recompute each day's filtered patch + diff against its cached current state for the
+    // active category selection — no Firestore re-read (curByKey was cached upfront).
+    // Run on first build and whenever a category checkbox is toggled.
+    function refreshImportDiff() {
+      if (!importDiff) return;
+      importDiff.forEach(e => {
+        e.fpatch = filterPatch(e.patch);
+        let refCur = null;
+        for (const key of e.keys) {
+          if (diffPatch(e.curByKey[key], e.fpatch).length > 0) { refCur = e.curByKey[key]; break; }
+        }
+        e.changed = refCur !== null;
+        e.changes = e.changed ? diffPatch(refCur, e.fpatch) : [];
+      });
+    }
+
+    function toggleImportCat(cat) {
+      importCats[cat] = !importCats[cat];
+      refreshImportDiff();
+      openImportPreview();
+    }
 
     // 'YYYYMMDD' -> 'YYYY-MM-DD' (null if malformed)
     function hrDateToDs(wrkdat) {
@@ -3290,11 +3335,12 @@
       const add = (obj, key, ds, patch) => { (obj[key] || (obj[key] = {}))[ds] = patch; };
       for (const e of entries) {
         if (!e.ds) continue;
+        const patch = e.fpatch || e.patch; // category-filtered patch
         const [y, m, day] = e.ds.split('-').map(Number);
-        add(primary, monthKey(y, m), e.ds, e.patch);
+        add(primary, monthKey(y, m), e.ds, patch);
         if (day >= 25) {
           const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
-          add(secondary, monthKey(ny, nm), e.ds, e.patch);
+          add(secondary, monthKey(ny, nm), e.ds, patch);
         }
       }
       return { primary, secondary };
@@ -3384,6 +3430,7 @@
     async function prepareImportDiff() {
       const rows = pendingImport;
       const curKey = monthKey(Y, M);
+      importCats = { late: true, leave: true, absent: true, ot: true, holiday: true }; // fresh import → all on
       const allKeys = new Set();
       rows.forEach(r => importTargetKeys(r.ds).forEach(k => allKeys.add(k)));
       const monthData = {};
@@ -3394,20 +3441,15 @@
       }
       importDiff = rows.map(r => {
         const patch = classifyImportRow(r);
-        // Check every doc the day lives in; it's "changed" if the patch differs in
-        // ANY of them. Show the diff against the currently-viewed month first so the
-        // old→new the user sees matches the calendar they're looking at.
+        // Cache the current state in every doc the day lives in (current view first, so
+        // the old→new shown matches the calendar). refreshImportDiff() then derives the
+        // changed/changes for whatever categories are selected — no Firestore re-read.
         const keys = importTargetKeys(r.ds).slice().sort((a, b) => (b === curKey) - (a === curKey));
-        let refCur = null;
-        for (const key of keys) {
-          const days = (monthData[key] || {}).days || {};
-          const cur = days[r.ds] || defDay(r.ds);
-          if (diffPatch(cur, patch).length > 0) { refCur = cur; break; }
-        }
-        const changed = refCur !== null;
-        const changes = changed ? diffPatch(refCur, patch) : [];
-        return { ds: r.ds, kind: patch.kind, patch, changes, changed };
+        const curByKey = {};
+        keys.forEach(key => { curByKey[key] = ((monthData[key] || {}).days || {})[r.ds] || defDay(r.ds); });
+        return { ds: r.ds, kind: patch.kind, patch, keys, curByKey, fpatch: patch, changes: [], changed: false };
       });
+      refreshImportDiff();
     }
 
     function openImportPreview() {
@@ -3421,9 +3463,8 @@
       // a day "overwrites" existing data if any changed field had a non-zero old number
       const hasOverwrite = e => e.changes.some(c => typeof c.old === 'number' && c.old > 0);
       const overwrite = changed.filter(hasOverwrite);
-      const cnt = k => changed.filter(e => e.kind === k).length;
-      const otCnt = changed.filter(e => e.changes.some(c => c.label === 'OT(ชม.)')).length;
-      const holCnt = changed.filter(e => e.changes.some(c => c.label === 'วันหยุด')).length;
+      // Count by the change labels actually present, so the tallies reflect the active filter.
+      const lblCnt = lbl => changed.filter(e => e.changes.some(c => c.label === lbl)).length;
 
       const changedHtml = changed.length
         ? `<div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-top:6px">
@@ -3438,13 +3479,20 @@
           </div>`
         : `<div class="info-box" style="margin-top:6px">ไม่มีอะไรเปลี่ยนแปลง — ข้อมูลตรงกับที่มีอยู่แล้ว</div>`;
 
+      const catRow = Object.keys(IMPORT_CATS).map(cat =>
+        `<label style="display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none">
+          <input type="checkbox" ${importCats[cat] ? 'checked' : ''} onclick="toggleImportCat('${cat}')"> ${IMPORT_CATS[cat].label}
+        </label>`).join('');
       document.getElementById('import-body').innerHTML = `
-      <div class="otsect" style="margin-top:6px"><h4>ตรวจก่อนบันทึก</h4>
+      <div class="otsect" style="margin-top:6px"><h4>เลือกประเภทที่จะนำเข้า</h4>
+        <div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.88rem;padding:2px 0">${catRow}</div>
+      </div>
+      <div class="otsect" style="margin-top:10px"><h4>ตรวจก่อนบันทึก</h4>
         <div class="srow"><span class="sl">พนักงาน</span><span class="sv">${emps.join(', ') || '—'}</span></div>
         <div class="srow"><span class="sl">ช่วงวันที่</span><span class="sv">${dates[0]} → ${dates[dates.length - 1]}</span></div>
         <div class="srow"><span class="sl">อ่านได้</span><span class="sv">${rows.length} วัน (${months.length} เดือน)</span></div>
         <div class="srow"><span class="sl">จะเปลี่ยนแปลง</span><span class="sv"><strong>${changed.length}</strong> วัน · เท่าเดิม ${rows.length - changed.length} วัน</span></div>
-        <div class="srow"><span class="sl">แยกประเภท</span><span class="sv">ลา ${cnt('leave')} · ขาด ${cnt('absent')} · สาย ${cnt('late')} · OT ${otCnt} · วันหยุด ${holCnt}</span></div>
+        <div class="srow"><span class="sl">แยกประเภท</span><span class="sv">สาย ${lblCnt('สาย(น.)')} · ลา ${lblCnt('ลา(ชม.)')} · ขาด ${lblCnt('ขาด(ชม.)')} · OT ${lblCnt('OT(ชม.)')} · วันหยุด ${lblCnt('วันหยุด')}</span></div>
       </div>
       ${overwrite.length
           ? `<div class="info-box" style="margin-top:10px;background:var(--red-lt)">⚠️ มี ${overwrite.length} วันที่จะ “เขียนทับ” ค่าเดิมที่ไม่ใช่ 0 (แถวสีแดง) — ตรวจให้ดีก่อนยืนยัน</div>`
