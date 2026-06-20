@@ -3289,7 +3289,11 @@
         const lh = Math.max(0, Math.ceil((L - 30) / 30)) * 0.5;
         return { kind: 'leave', lateMin: 0, leaveHours: lh, absentHours: 0, worked: true, ot, ...hol };
       }
-      return { kind: 'late', lateMin: L, leaveHours: 0, absentHours: 0, ot, ...hol };
+      // Normal/late day: a swipe-in means they were at work → worked:true. This also
+      // restores worked when a day flips from a full-day leave (worked:false) back to a
+      // worked day, so it no longer falls through to "absent". Weekends (no swipe) keep
+      // their default worked:false → no spurious travel/worked marking.
+      return { kind: 'late', lateMin: L, leaveHours: 0, absentHours: 0, ...(hasSwipe ? { worked: true } : {}), ot, ...hol };
     }
 
     const OT_RATES = ["1", "1.5", "2", "3"];
