@@ -1857,10 +1857,13 @@
                 <span class="late-badge" style="margin:0">⏰m</span>Late (deducted)
               </div>
             </div>
-            <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:6px">
-              <input type="file" id="import-file" accept=".html,.htm" style="display:none" onchange="handleImportFile(event)">
-              <button class="btn btn-c" onclick="openImportPaste()" style="font-size:.78rem;padding:5px 14px">📋 วางจากบริษัท</button>
-              <button class="btn btn-p" onclick="document.getElementById('import-file').click()" style="font-size:.78rem;padding:5px 14px">⬆️ Import HR file</button>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
+              <button class="btn btn-p" onclick="window.open('https://hr.rsquanta.com/HROldPages/Attn/Modify_Attandence_assistant_min.aspx?Site=QMB&amp;Flag=4&amp;languageType=en-US','_blank','noopener')" style="font-size:.78rem;padding:5px 14px">🌐 เปิดเว็บบริษัท</button>
+              <div style="display:flex;gap:8px">
+                <input type="file" id="import-file" accept=".html,.htm" style="display:none" onchange="handleImportFile(event)">
+                <button class="btn btn-c" onclick="openImportPaste()" style="font-size:.78rem;padding:5px 14px">📋 วางจากบริษัท</button>
+                <button class="btn btn-p" onclick="document.getElementById('import-file').click()" style="font-size:.78rem;padding:5px 14px">⬆️ Import HR file</button>
+              </div>
             </div>
             <details style="font-size:.72rem;color:var(--muted);margin-bottom:8px">
               <summary style="cursor:pointer;user-select:none">⚡ ดึงข้อมูลตรงจากเว็บบริษัท (ติดตั้ง Bookmarklet ครั้งเดียว)</summary>
