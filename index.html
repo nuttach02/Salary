@@ -1478,6 +1478,18 @@
       white-space: nowrap
     }
 
+    .absent-badge {
+      font-size: .58rem;
+      background: var(--red);
+      color: #fff;
+      border-radius: 3px;
+      padding: 1px 4px;
+      line-height: 1.4;
+      margin-top: 2px;
+      display: inline-block;
+      white-space: nowrap
+    }
+
     /* ── SATURDAY PRESETS ────────────────────────────────────────────────────── */
     .sat-presets {
       display: flex;
@@ -2447,7 +2459,7 @@
 
     function defDay(ds) {
       const dow = jsDate(ds).getDay();
-      return { worked: dow >= 1 && dow <= 5, isHoliday: false, satAbsent: false, sunAbsent: false, leave: false, leaveHours: 0, leaveStart: '', leaveEnd: '', ot: { "1": 0, "1.5": 0, "2": 0, "3": 0 }, lateMin: 0, note: '' };
+      return { worked: dow >= 1 && dow <= 5, isHoliday: false, satAbsent: false, sunAbsent: false, leave: false, leaveHours: 0, leaveStart: '', leaveEnd: '', absentHours: 0, ot: { "1": 0, "1.5": 0, "2": 0, "3": 0 }, lateMin: 0, note: '' };
     }
 
     function gd(ds) {
@@ -2461,6 +2473,13 @@
       const h = Number(d.leaveHours) || 0;
       if (h > 0) return h;
       return d.leave ? 9 : 0;
+    }
+
+    // Absent (ขาดงาน) hours for a day — a recorded figure, like leave hours.
+    // The money deduction is NOT taken from this; it follows late-minutes /
+    // the full-day absence rule, per the chosen import behaviour.
+    function absentHrsOf(d) {
+      return Number(d.absentHours) || 0;
     }
 
     // ── DATE HELPERS ───────────────────────────────────────────────────────────
@@ -2502,7 +2521,7 @@
       const otHrs = Object.values(otR).reduce((a, b) => a + b, 0);
 
       let tDays = 0, absentDays = 0, totalWorkDays = 0, totalLateMin = 0;
-      let leaveHrs = 0, leaveDays = 0;
+      let leaveHrs = 0, leaveDays = 0, absentHrs = 0, absentHrsDays = 0;
       for (const ds of ad) {
         if (!ds.startsWith(pfx)) continue;
         const dow = jsDate(ds).getDay();
@@ -2510,6 +2529,8 @@
         totalLateMin += Number(d.lateMin) || 0;
         const lh = leaveHrsOf(d);
         if (lh > 0) { leaveHrs += lh; leaveDays++; }
+        const ah = absentHrsOf(d);
+        if (ah > 0) { absentHrs += ah; absentHrsDays++; }
         // Weekdays (Mon–Fri): count as workable; absent if not worked, not holiday, and not on leave
         if (dow >= 1 && dow <= 5 && !d.isHoliday) {
           if (!d.leave) totalWorkDays++;
@@ -2542,7 +2563,7 @@
       const lateDeduction = totalLateMin * (BASE / 30 / 9 / 60);
       const otherDeductionsPay = OTHER_DEDUCTIONS.reduce((s, od) => s + (Number(od.amount) || 0), 0);
       const net = gross - SSF - lateDeduction - otherDeductionsPay;
-      return { BASE, absDeduction, absentDays, tPay, tDays, otPay, otR, otHrs, leaveHrs, leaveDays, SSF, totalLateMin, lateDeduction, otherIncomePay, otherDeductionsPay, gross, net };
+      return { BASE, absDeduction, absentDays, tPay, tDays, otPay, otR, otHrs, leaveHrs, leaveDays, absentHrs, absentHrsDays, SSF, totalLateMin, lateDeduction, otherIncomePay, otherDeductionsPay, gross, net };
     }
 
     // ── FORMAT ─────────────────────────────────────────────────────────────────
@@ -2620,6 +2641,8 @@
         const dLeaveHrs = leaveHrsOf(d);
         const leaveBadge = (!d.isHoliday && dow >= 1 && dow <= 5 && dLeaveHrs > 0) ? `<div class="leave-badge">Leave ${dLeaveHrs}h</div>` : '';
         const lateBadge = (Number(d.lateMin) > 0) ? `<div class="late-badge" title="มาสาย ${d.lateMin} นาที">⏰${d.lateMin}m</div>` : '';
+        const dAbsentHrs = absentHrsOf(d);
+        const absentBadge = (!d.isHoliday && dow >= 1 && dow <= 5 && dAbsentHrs > 0) ? `<div class="absent-badge" title="ขาดงาน ${dAbsentHrs} ชม.">ขาด ${dAbsentHrs}h</div>` : '';
         const mNote = isPrev
           ? `<div class="dmonth">${MONTHS[parseInt(ds.split('-')[1]) - 1].slice(0, 3)}</div>` : '';
 
@@ -2627,7 +2650,7 @@
         const isSunAbsent = dow === 0 && d.sunAbsent;
         html += `<div class="ccell ${bg}${isPrev ? ' prev' : ''}${isToday ? ' today' : ''}${hasOT ? ' has-ot' : ''}" onclick="cellClick('${ds}',event)" title="${ds}" style="animation-delay:${cellI * 13}ms">
       <div class="dnum${(!d.worked && !d.isHoliday && dow >= 1 && dow <= 5 || isSatAbsent || isSunAbsent) ? ' dim' : ''}">${dayNum}</div>
-      ${mNote}${holBadge}${leaveBadge}${lateBadge}${otHtml}${otDot}${tdot}${noteDot}
+      ${mNote}${holBadge}${leaveBadge}${lateBadge}${absentBadge}${otHtml}${otDot}${tdot}${noteDot}
     </div>`;
       }
       el.innerHTML = html;
@@ -2664,6 +2687,11 @@
     ${c.leaveHrs > 0
           ? `<div class="srow"><span class="sl">${c.leaveDays} day${c.leaveDays !== 1 ? 's' : ''} on leave</span><span class="sv">${c.leaveHrs}h</span></div>`
           : `<div class="srow"><span class="sl">No leave taken</span><span class="sv">0h</span></div>`}
+
+    <div class="ssect">ขาดงาน (Absent)${c.absentHrs > 0 ? ` — ${c.absentHrs}h total` : ''}</div>
+    ${c.absentHrs > 0
+          ? `<div class="srow"><span class="sl">${c.absentHrsDays} วันที่ขาด · บันทึกชั่วโมง</span><span class="sv">${c.absentHrs}h</span></div>`
+          : `<div class="srow"><span class="sl">ไม่มีการขาดงาน</span><span class="sv">0h</span></div>`}
 
     <div class="ssect">Deductions</div>
     <div class="srow"><span class="sl">SSF</span><span class="sv neg">−฿${fmt(c.SSF)}</span></div>
@@ -2765,6 +2793,27 @@
     </div>`;
       }
 
+      if (isWkd) {
+        const ah = absentHrsOf(d);
+        const isAbsent = ah > 0;
+        html += `<div class="trow" id="abrow"${d.isHoliday ? ' style="display:none"' : ''}>
+      <div><div class="tl">❌ ขาดงาน (Absent)</div><div class="td">บันทึกชั่วโมงขาด — เต็มวัน 9 ชม. / ครึ่งวัน 4 ชม. (หักเงินอิงนาทีสาย ไม่หักจากชั่วโมงนี้)</div></div>
+      <label class="sw"><input type="checkbox" id="chk-absent" ${isAbsent ? 'checked' : ''}><span class="sw-sl"></span></label>
+    </div>
+    <div class="leave-detail" id="absent-detail"${(isAbsent && !d.isHoliday) ? '' : ' style="display:none"'}>
+      <div class="sat-presets">
+        <span class="preset-label">⚡ Quick:</span>
+        <button class="preset-btn" onclick="absentPreset('half');return false"><span>ครึ่งวัน</span><small>4h</small></button>
+        <button class="preset-btn" onclick="absentPreset('full');return false"><span>เต็มวัน</span><small>9h</small></button>
+        <button class="preset-btn preset-clear" onclick="absentPreset('clear');return false">✕ Clear</button>
+      </div>
+      <div class="leave-times">
+        <label class="leave-fld">ชั่วโมงขาด<input type="number" class="otinp" id="absent-hours" value="${ah || ''}" min="0" max="9" step="0.5" placeholder="0" oninput="updAbsent()"></label>
+      </div>
+      <div class="ottotal" id="absent-tot"></div>
+    </div>`;
+      }
+
       if (isSat) {
         html += `<div class="trow" id="sarow"${d.isHoliday ? ' style="display:none"' : ''}>
       <div><div class="tl">❌ Absent (deduct salary)</div><div class="td">Mark this Saturday as an absence — daily rate will be deducted</div></div>
@@ -2852,6 +2901,11 @@
         const ld = document.getElementById('leave-detail');
         const cle = document.getElementById('chk-leave');
         if (ld) ld.style.display = (chkHol.checked || !cle || !cle.checked) ? 'none' : '';
+        const ar = document.getElementById('abrow');
+        if (ar) ar.style.display = chkHol.checked ? 'none' : '';
+        const ad = document.getElementById('absent-detail');
+        const cab = document.getElementById('chk-absent');
+        if (ad) ad.style.display = (chkHol.checked || !cab || !cab.checked) ? 'none' : '';
         const ltr = document.getElementById('laterow');
         if (ltr) ltr.style.display = chkHol.checked ? 'none' : '';
         updOT();
@@ -2869,10 +2923,16 @@
         const h = he ? (parseFloat(he.value) || 0) : 0;
         if (chkWrk.checked && h >= 9) leavePreset('clear');
       });
+      const chkAbsent = document.getElementById('chk-absent');
+      if (chkAbsent) chkAbsent.addEventListener('change', () => {
+        // New absence defaults to a full day; unchecking clears it
+        absentPreset(chkAbsent.checked ? 'full' : 'clear');
+      });
 
       document.getElementById('mbg').classList.add('open');
       updOT();
       updLeave();
+      updAbsent();
     }
 
     function satPreset(h1, h15, h2, h3) {
@@ -2920,6 +2980,7 @@
       }
       if (chkLeave) chkLeave.checked = true;
       if (det) det.style.display = '';
+      clearAbsentUI(); // leave and absent are mutually exclusive
       if (kind === 'full') {
         if (hoursEl) hoursEl.value = 9;
         if (startEl) startEl.value = '08:00';
@@ -2949,6 +3010,57 @@
         : '';
     }
 
+    // Clear the leave / absent sub-panels (used for mutual exclusivity). These only
+    // touch their own controls — they never change the Worked toggle.
+    function clearLeaveUI() {
+      const c = document.getElementById('chk-leave'), d = document.getElementById('leave-detail'), h = document.getElementById('leave-hours');
+      const s = document.getElementById('leave-start-t'), e = document.getElementById('leave-end-t');
+      if (c) c.checked = false;
+      if (d) d.style.display = 'none';
+      if (h) h.value = '';
+      if (s) s.value = '';
+      if (e) e.value = '';
+      updLeave();
+    }
+    function clearAbsentUI() {
+      const c = document.getElementById('chk-absent'), d = document.getElementById('absent-detail'), h = document.getElementById('absent-hours');
+      if (c) c.checked = false;
+      if (d) d.style.display = 'none';
+      if (h) h.value = '';
+      updAbsent();
+    }
+
+    // Quick-fill absent hours: 'full' (9h), 'half' (4h), 'clear' (none). Absent hours
+    // are a record only — they do not change the Worked flag or add a deduction here.
+    function absentPreset(kind) {
+      const det = document.getElementById('absent-detail');
+      const chkAbsent = document.getElementById('chk-absent');
+      const hoursEl = document.getElementById('absent-hours');
+      if (kind === 'clear') {
+        if (hoursEl) hoursEl.value = '';
+        if (chkAbsent) chkAbsent.checked = false;
+        if (det) det.style.display = 'none';
+        updAbsent();
+        return;
+      }
+      if (chkAbsent) chkAbsent.checked = true;
+      if (det) det.style.display = '';
+      clearLeaveUI(); // absent and leave are mutually exclusive
+      if (hoursEl) hoursEl.value = (kind === 'half') ? 4 : 9;
+      updAbsent();
+    }
+
+    function updAbsent() {
+      const hoursEl = document.getElementById('absent-hours');
+      if (!hoursEl) return;
+      let h = parseFloat(hoursEl.value);
+      if (isNaN(h)) h = 0;
+      if (h > 9) { h = 9; hoursEl.value = 9; }
+      if (h < 0) { h = 0; hoursEl.value = ''; }
+      const tot = document.getElementById('absent-tot');
+      if (tot) tot.textContent = h > 0 ? `ขาดงาน: ${h} ชม. (บันทึก — หักเงินอิงนาทีสาย)` : '';
+    }
+
     function saveDay() {
       if (!editDate) return;
       const d = gd(editDate);
@@ -2964,6 +3076,15 @@
         d.leave = lh > 0;
         const se = document.getElementById('leave-start-t'); d.leaveStart = (lh > 0 && se) ? se.value : '';
         const ee = document.getElementById('leave-end-t'); d.leaveEnd = (lh > 0 && ee) ? ee.value : '';
+      }
+      // Absent hours (weekday only): a recorded figure, no deduction taken from it here.
+      const ahEl = document.getElementById('absent-hours');
+      if (ahEl) {
+        let ah = parseFloat(ahEl.value) || 0;
+        if (ah < 0) ah = 0;
+        if (ah > 9) ah = 9;
+        if (d.isHoliday) ah = 0;
+        d.absentHours = ah;
       }
       const cw = document.getElementById('chk-wrk'); if (cw) d.worked = (Number(d.leaveHours) >= 9) ? false : cw.checked;
       const csa = document.getElementById('chk-sat-absent'); if (csa) d.satAbsent = csa.checked;
@@ -3035,7 +3156,7 @@
 
     // ── IMPORT (HR attendance HTML) ──────────────────────────────────────────────
     let pendingImport = null; // parsed rows awaiting confirmation
-    let importDiff = null;    // per-day { ds, oldLate, newLate, changed } for the preview
+    let importDiff = null;    // per-day { ds, kind, patch, changes[], changed } for the preview
 
     // 'YYYYMMDD' -> 'YYYY-MM-DD' (null if malformed)
     function hrDateToDs(wrkdat) {
@@ -3062,6 +3183,8 @@
         const txt = sel => { const e = tr.querySelector(sel); return e ? e.textContent.trim() : ''; };
         rows.push({
           ds, latmin,
+          absenthrs: parseFloat(txt("[id$='gvlblAbsenthrs']")) || 0, // hours of absence (decimal)
+          leacod: txt("[id$='gvlblLeacod']"),                        // Take Leave: 'Y' / 'N'
           emplid: txt("[id$='gvlblEmplid']"),
           swipeIn: txt("[id$='gvlblEntdat']"),
           swipeOut: txt("[id$='gvlblStwkhr']")
@@ -3070,20 +3193,68 @@
       return rows;
     }
 
-    // Route each day's lateness to the month doc(s) that render/aggregate it.
-    // primary  = the day's own calendar month (deduction + attendance calendar + own OT calendar).
-    // secondary = next month, only for day >= 25, so that month's OT calendar shows the badge.
-    // calc()'s month-prefix filter means the secondary copy never double-counts.
-    function buildImportWrites(rows) {
+    // Classify one HR day into the fields it should set (a "patch"). Only keys
+    // present in the patch are applied; absent keys leave the day untouched.
+    //  - Absent (Absenthrs>0): record absent hours; deduction follows late-minutes.
+    //  - Take Leave = Y, no swipe-in: full-day leave (9h, not worked).
+    //  - Take Leave = Y, with swipe-in: partial leave from a late arrival —
+    //      hours = ceil((Latmin − 30)/30) × 0.5  (08:31→0.5h, 09:01→1h; ≤30→0), still worked.
+    //  - Otherwise: a normal day; Latmin drives the existing late deduction.
+    function classifyImportRow(r) {
+      const L = Number(r.latmin) || 0;
+      const A = Number(r.absenthrs) || 0;
+      const leaveY = r.leacod === 'Y';
+      const hasSwipe = !!(r.swipeIn && String(r.swipeIn).trim());
+      if (A > 0) {
+        return { kind: 'absent', lateMin: L, leaveHours: 0, absentHours: A };
+      }
+      if (leaveY) {
+        if (!hasSwipe) {
+          return { kind: 'leave', lateMin: 0, leaveHours: 9, absentHours: 0, worked: false };
+        }
+        const lh = Math.max(0, Math.ceil((L - 30) / 30)) * 0.5;
+        return { kind: 'leave', lateMin: 0, leaveHours: lh, absentHours: 0, worked: true };
+      }
+      return { kind: 'late', lateMin: L, leaveHours: 0, absentHours: 0 };
+    }
+
+    // Compare a day's current state against a patch; returns the differing fields.
+    function diffPatch(cur, patch) {
+      const changes = [];
+      if ('lateMin' in patch) { const o = Number(cur.lateMin) || 0; if (o !== patch.lateMin) changes.push({ label: 'สาย(น.)', old: o, new: patch.lateMin }); }
+      if ('leaveHours' in patch) { const o = leaveHrsOf(cur); if (o !== patch.leaveHours) changes.push({ label: 'ลา(ชม.)', old: o, new: patch.leaveHours }); }
+      if ('absentHours' in patch) { const o = absentHrsOf(cur); if (o !== patch.absentHours) changes.push({ label: 'ขาด(ชม.)', old: o, new: patch.absentHours }); }
+      if ('worked' in patch) { const o = !!cur.worked; if (o !== !!patch.worked) changes.push({ label: 'ทำงาน', old: o ? '✓' : '✗', new: patch.worked ? '✓' : '✗' }); }
+      return changes;
+    }
+
+    // Apply a patch's present fields onto a day object.
+    function applyPatchToDay(d, patch) {
+      if ('lateMin' in patch) d.lateMin = patch.lateMin;
+      if ('absentHours' in patch) d.absentHours = patch.absentHours;
+      if ('leaveHours' in patch) {
+        d.leaveHours = patch.leaveHours;
+        d.leave = patch.leaveHours > 0;
+        if (patch.leaveHours >= 9) { d.leaveStart = '08:00'; d.leaveEnd = '18:00'; }
+        else if (patch.leaveHours === 0) { d.leaveStart = ''; d.leaveEnd = ''; }
+      }
+      if ('worked' in patch) d.worked = patch.worked;
+    }
+
+    // Route each changed day's patch to the month doc(s) that render/aggregate it.
+    // primary  = the day's own calendar month. secondary = next month, only for
+    // day >= 25, so that month's OT calendar shows it. Each month's calc filters by
+    // month-prefix / OT-range, so the duplicated copy never double-counts.
+    function buildImportWrites(entries) {
       const primary = {}, secondary = {};
-      const add = (obj, key, ds, v) => { (obj[key] || (obj[key] = {}))[ds] = v; };
-      for (const r of rows) {
-        if (!r.ds) continue;
-        const [y, m, day] = r.ds.split('-').map(Number);
-        add(primary, monthKey(y, m), r.ds, r.latmin);
+      const add = (obj, key, ds, patch) => { (obj[key] || (obj[key] = {}))[ds] = patch; };
+      for (const e of entries) {
+        if (!e.ds) continue;
+        const [y, m, day] = e.ds.split('-').map(Number);
+        add(primary, monthKey(y, m), e.ds, e.patch);
         if (day >= 25) {
           const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
-          add(secondary, monthKey(ny, nm), r.ds, r.latmin);
+          add(secondary, monthKey(ny, nm), e.ds, e.patch);
         }
       }
       return { primary, secondary };
@@ -3111,8 +3282,9 @@
       reader.readAsText(file);
     }
 
-    // Fetch the current lateMin for each parsed day (from its own calendar month —
-    // the authoritative location) so the preview can show old → new before saving.
+    // Classify each parsed day and compare against its current state (from its own
+    // calendar month — the authoritative location) so the preview can show every
+    // changed field before saving.
     async function prepareImportDiff() {
       const rows = pendingImport;
       const curKey = monthKey(Y, M);
@@ -3129,9 +3301,10 @@
       importDiff = rows.map(r => {
         const [y, m] = r.ds.split('-').map(Number);
         const days = (monthData[monthKey(y, m)] || {}).days || {};
-        const d = days[r.ds];
-        const oldLate = d ? (Number(d.lateMin) || 0) : 0;
-        return { ds: r.ds, oldLate, newLate: r.latmin, changed: oldLate !== r.latmin };
+        const cur = days[r.ds] || defDay(r.ds);
+        const patch = classifyImportRow(r);
+        const changes = diffPatch(cur, patch);
+        return { ds: r.ds, kind: patch.kind, patch, changes, changed: changes.length > 0 };
       });
     }
 
@@ -3143,19 +3316,23 @@
 
       const diff = importDiff || [];
       const changed = diff.filter(d => d.changed);
-      const overwrite = changed.filter(d => d.oldLate > 0); // existing non-zero value being modified
+      // a day "overwrites" existing data if any changed field had a non-zero old number
+      const hasOverwrite = e => e.changes.some(c => typeof c.old === 'number' && c.old > 0);
+      const overwrite = changed.filter(hasOverwrite);
+      const cnt = k => changed.filter(e => e.kind === k).length;
 
       const changedHtml = changed.length
-        ? `<div style="max-height:230px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-top:6px">
-            ${changed.map(d => {
-            const warn = d.oldLate > 0;
-            return `<div class="srow" style="padding:5px 10px${warn ? ';background:var(--red-lt)' : ''}">
-              <span class="sl">${d.ds}${warn ? ' ⚠️' : ''}</span>
-              <span class="sv">${d.oldLate} → <strong style="color:${warn ? 'var(--red)' : 'var(--green)'}">${d.newLate}</strong> นาที</span>
+        ? `<div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-top:6px">
+            ${changed.map(e => {
+            const warn = hasOverwrite(e);
+            const desc = e.changes.map(c => `${c.label} ${c.old}→<strong style="color:${warn ? 'var(--red)' : 'var(--green)'}">${c.new}</strong>`).join(' · ');
+            return `<div class="srow" style="padding:5px 10px;gap:8px${warn ? ';background:var(--red-lt)' : ''}">
+              <span class="sl" style="white-space:nowrap">${e.ds}${warn ? ' ⚠️' : ''}</span>
+              <span class="sv" style="text-align:right">${desc}</span>
             </div>`;
           }).join('')}
           </div>`
-        : `<div class="info-box" style="margin-top:6px">ไม่มีอะไรเปลี่ยนแปลง — ค่านาทีสายทั้งหมดตรงกับที่มีอยู่แล้ว</div>`;
+        : `<div class="info-box" style="margin-top:6px">ไม่มีอะไรเปลี่ยนแปลง — ข้อมูลตรงกับที่มีอยู่แล้ว</div>`;
 
       document.getElementById('import-body').innerHTML = `
       <div class="otsect" style="margin-top:6px"><h4>ตรวจก่อนบันทึก</h4>
@@ -3163,12 +3340,13 @@
         <div class="srow"><span class="sl">ช่วงวันที่</span><span class="sv">${dates[0]} → ${dates[dates.length - 1]}</span></div>
         <div class="srow"><span class="sl">อ่านได้</span><span class="sv">${rows.length} วัน (${months.length} เดือน)</span></div>
         <div class="srow"><span class="sl">จะเปลี่ยนแปลง</span><span class="sv"><strong>${changed.length}</strong> วัน · เท่าเดิม ${rows.length - changed.length} วัน</span></div>
+        <div class="srow"><span class="sl">แยกประเภท</span><span class="sv">ลา ${cnt('leave')} · ขาด ${cnt('absent')} · สาย ${cnt('late')}</span></div>
       </div>
       ${overwrite.length
-          ? `<div class="info-box" style="margin-top:10px;background:var(--red-lt)">⚠️ มี ${overwrite.length} วันที่จะ “เขียนทับ” ค่าสายเดิมที่ไม่ใช่ 0 (แถวสีแดงด้านล่าง) — ตรวจให้ดีก่อนยืนยัน</div>`
+          ? `<div class="info-box" style="margin-top:10px;background:var(--red-lt)">⚠️ มี ${overwrite.length} วันที่จะ “เขียนทับ” ค่าเดิมที่ไม่ใช่ 0 (แถวสีแดง) — ตรวจให้ดีก่อนยืนยัน</div>`
           : ''}
       ${changedHtml}
-      <div class="info-box" style="margin-top:10px">กด “ยกเลิก” ได้ตลอด — ข้อมูลเดิมจะไม่ถูกแก้จนกว่าจะกดยืนยัน · บันทึกเฉพาะค่านาทีสาย ไม่กระทบ Worked / OT / Leave</div>
+      <div class="info-box" style="margin-top:10px">กด “ยกเลิก” ได้ตลอด — ข้อมูลเดิมจะไม่ถูกแก้จนกว่าจะกดยืนยัน · บันทึก สาย/ลา/ขาด/worked ตามไฟล์ (ไม่แตะ OT)</div>
       <div class="mactions">
         <button class="btn btn-c" onclick="closeImport()">ยกเลิก</button>
         <button class="btn btn-p" id="import-apply-btn" onclick="applyImport()" ${changed.length === 0 ? 'disabled' : ''}>ยืนยันบันทึก ${changed.length} วัน</button>
@@ -3183,12 +3361,12 @@
     }
     function importBgClick(e) { if (e.target === document.getElementById('importbg')) closeImport(); }
 
-    async function writeLateToMonth(key, dayMap, curKey, onlyIfExists) {
+    async function writeDayPatch(key, dayMap, curKey, onlyIfExists) {
       if (key === curKey) {
         // current month: update in-memory; the caller persists it via save()
         for (const ds in dayMap) {
           if (!mdata.days[ds]) mdata.days[ds] = defDay(ds);
-          mdata.days[ds].lateMin = dayMap[ds];
+          applyPatchToDay(mdata.days[ds], dayMap[ds]);
         }
         return;
       }
@@ -3199,33 +3377,32 @@
       if (!data.days) data.days = {};
       for (const ds in dayMap) {
         if (!data.days[ds]) data.days[ds] = defDay(ds);
-        data.days[ds].lateMin = dayMap[ds];
+        applyPatchToDay(data.days[ds], dayMap[ds]);
       }
       await ref.set(data);
     }
 
     async function applyImport() {
-      if (!pendingImport || !pendingImport.length) { closeImport(); return; }
+      if (!importDiff) { closeImport(); return; }
       // Only write the days that actually change — unchanged months are never touched.
-      const changedSet = new Set((importDiff || []).filter(d => d.changed).map(d => d.ds));
-      const toWrite = pendingImport.filter(r => changedSet.has(r.ds));
-      if (!toWrite.length) { closeImport(); showToast('ไม่มีอะไรต้องบันทึก'); return; }
+      const changed = importDiff.filter(d => d.changed);
+      if (!changed.length) { closeImport(); showToast('ไม่มีอะไรต้องบันทึก'); return; }
 
       const btn = document.getElementById('import-apply-btn');
       if (btn) { btn.disabled = true; btn.textContent = 'กำลังบันทึก…'; }
 
-      const { primary, secondary } = buildImportWrites(toWrite);
+      const { primary, secondary } = buildImportWrites(changed);
       const curKey = monthKey(Y, M);
       try {
-        for (const key of Object.keys(primary)) await writeLateToMonth(key, primary[key], curKey, false);
-        for (const key of Object.keys(secondary)) await writeLateToMonth(key, secondary[key], curKey, true);
+        for (const key of Object.keys(primary)) await writeDayPatch(key, primary[key], curKey, false);
+        for (const key of Object.keys(secondary)) await writeDayPatch(key, secondary[key], curKey, true);
         if (primary[curKey] || secondary[curKey]) { renderAll(); save(); }
       } catch (e) {
-        if (btn) { btn.disabled = false; btn.textContent = `ยืนยันบันทึก ${toWrite.length} วัน`; }
+        if (btn) { btn.disabled = false; btn.textContent = `ยืนยันบันทึก ${changed.length} วัน`; }
         showToast('บันทึกไม่สำเร็จ: ' + ((e && e.message) || e));
         return;
       }
-      const n = toWrite.length;
+      const n = changed.length;
       closeImport();
       showToast(`บันทึกแล้ว: ${n} วันที่เปลี่ยนแปลง ✓`);
     }
