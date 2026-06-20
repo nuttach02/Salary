@@ -3181,10 +3181,14 @@
         const latEl = tr.querySelector("[id$='gvlblLatmin']");
         const latmin = latEl ? (parseInt(latEl.textContent.trim(), 10) || 0) : 0;
         const txt = sel => { const e = tr.querySelector(sel); return e ? e.textContent.trim() : ''; };
+        const num = sel => { const e = tr.querySelector(sel); return e ? (parseFloat(e.value) || 0) : 0; };
         rows.push({
           ds, latmin,
           absenthrs: parseFloat(txt("[id$='gvlblAbsenthrs']")) || 0, // hours of absence (decimal)
           leacod: txt("[id$='gvlblLeacod']"),                        // Take Leave: 'Y' / 'N'
+          // OT minutes per rate bucket, from the hidden inputs (visible spans can be blank on
+          // recent/pending days). Index 0→1×, 1→1.5×, 2→2×, 3→3×.
+          otMin: [0, 1, 2, 3].map(i => num(`[id$='gvhdMin${i}']`)),
           emplid: txt("[id$='gvlblEmplid']"),
           swipeIn: txt("[id$='gvlblEntdat']"),
           swipeOut: txt("[id$='gvlblStwkhr']")
@@ -3205,18 +3209,26 @@
       const A = Number(r.absenthrs) || 0;
       const leaveY = r.leacod === 'Y';
       const hasSwipe = !!(r.swipeIn && String(r.swipeIn).trim());
+      // OT is independent of the late/leave/absent kind — always carry it. Minutes
+      // per bucket → hours: Min0→1×, Min1→1.5×, Min2→2×, Min3→3×.
+      const m = r.otMin || [0, 0, 0, 0];
+      const h = n => Math.round(n / 60 * 100) / 100;
+      const ot = { "1": h(m[0]), "1.5": h(m[1]), "2": h(m[2]), "3": h(m[3]) };
       if (A > 0) {
-        return { kind: 'absent', lateMin: L, leaveHours: 0, absentHours: A };
+        return { kind: 'absent', lateMin: L, leaveHours: 0, absentHours: A, ot };
       }
       if (leaveY) {
         if (!hasSwipe) {
-          return { kind: 'leave', lateMin: 0, leaveHours: 9, absentHours: 0, worked: false };
+          return { kind: 'leave', lateMin: 0, leaveHours: 9, absentHours: 0, worked: false, ot };
         }
         const lh = Math.max(0, Math.ceil((L - 30) / 30)) * 0.5;
-        return { kind: 'leave', lateMin: 0, leaveHours: lh, absentHours: 0, worked: true };
+        return { kind: 'leave', lateMin: 0, leaveHours: lh, absentHours: 0, worked: true, ot };
       }
-      return { kind: 'late', lateMin: L, leaveHours: 0, absentHours: 0 };
+      return { kind: 'late', lateMin: L, leaveHours: 0, absentHours: 0, ot };
     }
+
+    const OT_RATES = ["1", "1.5", "2", "3"];
+    const otTotal = o => OT_RATES.reduce((s, r) => s + (Number(o && o[r]) || 0), 0);
 
     // Compare a day's current state against a patch; returns the differing fields.
     function diffPatch(cur, patch) {
@@ -3225,6 +3237,11 @@
       if ('leaveHours' in patch) { const o = leaveHrsOf(cur); if (o !== patch.leaveHours) changes.push({ label: 'ลา(ชม.)', old: o, new: patch.leaveHours }); }
       if ('absentHours' in patch) { const o = absentHrsOf(cur); if (o !== patch.absentHours) changes.push({ label: 'ขาด(ชม.)', old: o, new: patch.absentHours }); }
       if ('worked' in patch) { const o = !!cur.worked; if (o !== !!patch.worked) changes.push({ label: 'ทำงาน', old: o ? '✓' : '✗', new: patch.worked ? '✓' : '✗' }); }
+      if ('ot' in patch) {
+        const co = cur.ot || {};
+        const diff = OT_RATES.some(r => (Number(co[r]) || 0) !== (Number(patch.ot[r]) || 0));
+        if (diff) changes.push({ label: 'OT(ชม.)', old: otTotal(co), new: otTotal(patch.ot) });
+      }
       return changes;
     }
 
@@ -3239,6 +3256,7 @@
         else if (patch.leaveHours === 0) { d.leaveStart = ''; d.leaveEnd = ''; }
       }
       if ('worked' in patch) d.worked = patch.worked;
+      if ('ot' in patch) d.ot = { "1": patch.ot["1"], "1.5": patch.ot["1.5"], "2": patch.ot["2"], "3": patch.ot["3"] };
     }
 
     // Route each changed day's patch to the month doc(s) that render/aggregate it.
@@ -3285,26 +3303,43 @@
     // Classify each parsed day and compare against its current state (from its own
     // calendar month — the authoritative location) so the preview can show every
     // changed field before saving.
+    // The month doc(s) a day is stored in: its own calendar month, plus — for
+    // day >= 25 — the next month (whose OT calendar also shows/edits it). A day on
+    // the 25th–31st has two independent copies, so the diff must consider both:
+    // editing it while viewing the next month only changes that copy.
+    function importTargetKeys(ds) {
+      const [y, m, day] = ds.split('-').map(Number);
+      const keys = [monthKey(y, m)];
+      if (day >= 25) { const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1; keys.push(monthKey(ny, nm)); }
+      return keys;
+    }
+
     async function prepareImportDiff() {
       const rows = pendingImport;
       const curKey = monthKey(Y, M);
-      const keys = [...new Set(rows.map(r => {
-        const [y, m] = r.ds.split('-').map(Number);
-        return monthKey(y, m);
-      }))];
+      const allKeys = new Set();
+      rows.forEach(r => importTargetKeys(r.ds).forEach(k => allKeys.add(k)));
       const monthData = {};
-      for (const key of keys) {
+      for (const key of allKeys) {
         if (key === curKey) { monthData[key] = mdata; continue; }
         const snap = await userMonths().doc(key).get();
         monthData[key] = snap.exists ? snap.data() : { days: {} };
       }
       importDiff = rows.map(r => {
-        const [y, m] = r.ds.split('-').map(Number);
-        const days = (monthData[monthKey(y, m)] || {}).days || {};
-        const cur = days[r.ds] || defDay(r.ds);
         const patch = classifyImportRow(r);
-        const changes = diffPatch(cur, patch);
-        return { ds: r.ds, kind: patch.kind, patch, changes, changed: changes.length > 0 };
+        // Check every doc the day lives in; it's "changed" if the patch differs in
+        // ANY of them. Show the diff against the currently-viewed month first so the
+        // old→new the user sees matches the calendar they're looking at.
+        const keys = importTargetKeys(r.ds).slice().sort((a, b) => (b === curKey) - (a === curKey));
+        let refCur = null;
+        for (const key of keys) {
+          const days = (monthData[key] || {}).days || {};
+          const cur = days[r.ds] || defDay(r.ds);
+          if (diffPatch(cur, patch).length > 0) { refCur = cur; break; }
+        }
+        const changed = refCur !== null;
+        const changes = changed ? diffPatch(refCur, patch) : [];
+        return { ds: r.ds, kind: patch.kind, patch, changes, changed };
       });
     }
 
@@ -3320,6 +3355,7 @@
       const hasOverwrite = e => e.changes.some(c => typeof c.old === 'number' && c.old > 0);
       const overwrite = changed.filter(hasOverwrite);
       const cnt = k => changed.filter(e => e.kind === k).length;
+      const otCnt = changed.filter(e => e.changes.some(c => c.label === 'OT(ชม.)')).length;
 
       const changedHtml = changed.length
         ? `<div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-top:6px">
@@ -3340,13 +3376,13 @@
         <div class="srow"><span class="sl">ช่วงวันที่</span><span class="sv">${dates[0]} → ${dates[dates.length - 1]}</span></div>
         <div class="srow"><span class="sl">อ่านได้</span><span class="sv">${rows.length} วัน (${months.length} เดือน)</span></div>
         <div class="srow"><span class="sl">จะเปลี่ยนแปลง</span><span class="sv"><strong>${changed.length}</strong> วัน · เท่าเดิม ${rows.length - changed.length} วัน</span></div>
-        <div class="srow"><span class="sl">แยกประเภท</span><span class="sv">ลา ${cnt('leave')} · ขาด ${cnt('absent')} · สาย ${cnt('late')}</span></div>
+        <div class="srow"><span class="sl">แยกประเภท</span><span class="sv">ลา ${cnt('leave')} · ขาด ${cnt('absent')} · สาย ${cnt('late')} · OT ${otCnt}</span></div>
       </div>
       ${overwrite.length
           ? `<div class="info-box" style="margin-top:10px;background:var(--red-lt)">⚠️ มี ${overwrite.length} วันที่จะ “เขียนทับ” ค่าเดิมที่ไม่ใช่ 0 (แถวสีแดง) — ตรวจให้ดีก่อนยืนยัน</div>`
           : ''}
       ${changedHtml}
-      <div class="info-box" style="margin-top:10px">กด “ยกเลิก” ได้ตลอด — ข้อมูลเดิมจะไม่ถูกแก้จนกว่าจะกดยืนยัน · บันทึก สาย/ลา/ขาด/worked ตามไฟล์ (ไม่แตะ OT)</div>
+      <div class="info-box" style="margin-top:10px">กด “ยกเลิก” ได้ตลอด — ข้อมูลเดิมจะไม่ถูกแก้จนกว่าจะกดยืนยัน · บันทึก สาย/ลา/ขาด/OT ตามไฟล์ (ไม่แตะ travel) · วันล่าสุดอาจมี OT ที่ยังไม่อนุมัติรวมมาด้วย</div>
       <div class="mactions">
         <button class="btn btn-c" onclick="closeImport()">ยกเลิก</button>
         <button class="btn btn-p" id="import-apply-btn" onclick="applyImport()" ${changed.length === 0 ? 'disabled' : ''}>ยืนยันบันทึก ${changed.length} วัน</button>
@@ -3395,7 +3431,13 @@
       const curKey = monthKey(Y, M);
       try {
         for (const key of Object.keys(primary)) await writeDayPatch(key, primary[key], curKey, false);
-        for (const key of Object.keys(secondary)) await writeDayPatch(key, secondary[key], curKey, true);
+        for (const key of Object.keys(secondary)) {
+          const dayMap = secondary[key];
+          // For day>=25 this next month IS the day's OT period — if the patch carries real
+          // OT, create the doc (don't drop OT pay); otherwise keep it a display-only mirror.
+          const hasOt = Object.values(dayMap).some(p => p.ot && otTotal(p.ot) > 0);
+          await writeDayPatch(key, dayMap, curKey, !hasOt);
+        }
         if (primary[curKey] || secondary[curKey]) { renderAll(); save(); }
       } catch (e) {
         if (btn) { btn.disabled = false; btn.textContent = `ยืนยันบันทึก ${changed.length} วัน`; }
