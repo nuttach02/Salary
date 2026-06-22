@@ -9,7 +9,8 @@
       "PowerShell(git push *)",
       "Bash(node -e ' *)",
       "Bash(node --check _check.js)",
-      "Bash(node --check /e/salaryot/__appscript.js)"
+      "Bash(node --check /e/salaryot/__appscript.js)",
+      "Bash(node --check _chk.js)"
     ]
   }
 }
