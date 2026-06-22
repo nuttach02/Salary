@@ -22,6 +22,8 @@
       --orange-lt: #ffefe0;
       /* OT hours text in calendar cells — fixed, intentionally NOT themed */
       --ot-text: #007985;
+      /* Pulsing glow halo for OT-day dots (idle animation) */
+      --ot-glow: rgba(207, 111, 25, .55);
       /* Neutrals — tinted toward the teal primary, not pure gray */
       --gray: #4b5961;
       --border: #d3dde0;
@@ -66,6 +68,7 @@
       --orange: #f49752;
       --orange-lt: #482f1a;
       --ot-text: #3fb8be;
+      --ot-glow: rgba(244, 151, 82, .55);
       --gray: #9aa7ae;
       --border: #31383c;
       --bg: #0b1115;
@@ -1110,7 +1113,14 @@
       height: 7px;
       border-radius: 50%;
       background: var(--orange);
-      border: 1.5px solid rgba(255, 255, 255, .45)
+      border: 1.5px solid rgba(255, 255, 255, .45);
+      animation: otPulse 2s ease-out infinite
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .ot-dot {
+        animation: none
+      }
     }
 
     .ccell.has-ot {
@@ -1605,6 +1615,27 @@
 
       100% {
         box-shadow: 0 0 0 0 rgba(35, 119, 61, 0);
+      }
+    }
+
+    @keyframes otPulse {
+      0% {
+        box-shadow: 0 0 0 0 var(--ot-glow);
+        transform: scale(1);
+      }
+
+      35% {
+        transform: scale(1.18);
+      }
+
+      70% {
+        box-shadow: 0 0 0 7px transparent;
+        transform: scale(1);
+      }
+
+      100% {
+        box-shadow: 0 0 0 0 transparent;
+        transform: scale(1);
       }
     }
 
