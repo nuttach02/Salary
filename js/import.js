@@ -6,12 +6,12 @@
     // to the patch keys it owns; unchecked categories are stripped from every day's patch
     // before the diff/preview and before writing (so they're never touched).
     const IMPORT_CATS = {
-      late:    { label: 'สาย',     keys: ['lateMin'] },
-      leave:   { label: 'ลา',      keys: ['leaveHours', 'worked'] },
-      absent:  { label: 'ขาด',     keys: ['absentHours'] },
+      late:    { label: 'Late',     keys: ['lateMin'] },
+      leave:   { label: 'Leave',      keys: ['leaveHours', 'worked'] },
+      absent:  { label: 'Absent',     keys: ['absentHours'] },
       ot:      { label: 'OT',      keys: ['ot'] },
-      holiday: { label: 'วันหยุด', keys: ['isHoliday'] },
-      time:    { label: 'เวลาเข้า-ออก', keys: ['workIn', 'workOut'] }
+      holiday: { label: 'Holiday', keys: ['isHoliday'] },
+      time:    { label: 'Time in/out', keys: ['workIn', 'workOut'] }
     };
     let importCats = { late: true, leave: true, absent: true, ot: true, holiday: true, time: true };
 

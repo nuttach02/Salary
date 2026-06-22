@@ -328,6 +328,15 @@
         <span class="sl" style="font-size:.8rem">Hourly OT rate (Base ÷ 30 ÷ 9)</span>
         <span class="sv" id="set-hrate" style="color:var(--blue);font-size:.82rem">—</span>
       </div>
+      <div class="otsect">
+        <h4>🎨 ธีมสี / Accent colour</h4>
+        <div class="acc-row">
+          <div id="accent-swatches" class="acc-swatches"></div>
+          <span class="acc-div"></span>
+          <input type="color" id="set-accent-custom" class="acc-sw acc-custom" value="#007985"
+            title="เลือกสีเอง / Custom" oninput="selectAccentCustom(this.value)">
+        </div>
+      </div>
       <div class="mactions">
         <button class="btn btn-c" onclick="closeSettings()">Cancel</button>
         <button class="btn btn-p" onclick="saveSettings()">Save</button>

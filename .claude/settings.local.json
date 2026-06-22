@@ -10,7 +10,12 @@
       "Bash(node -e ' *)",
       "Bash(node --check _check.js)",
       "Bash(node --check /e/salaryot/__appscript.js)",
-      "Bash(node --check _chk.js)"
+      "Bash(node --check _chk.js)",
+      "Bash(awk 'NR>=2491 && NR<=4288' index.html)",
+      "Bash(grep -n -E '// ──|function [a-zA-Z_]|const [a-zA-Z_]+ = \\(async \\)?\\\\\\(|const [a-zA-Z_]+ = function|=> \\\\{$')",
+      "Bash(awk 'NR>=2491 && NR<=4288 {print NR\": \"$0}' index.html)",
+      "Bash(grep -vE '^[0-9]+:    \\(function |async function |\\\\}|//|/\\\\*|\\\\*\\)')",
+      "Bash(node --check js/auth.js)"
     ]
   }
 }

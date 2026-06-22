@@ -1,4 +1,7 @@
     // ── SETTINGS MODAL ────────────────────────────────────────────────────────
+    // Accent being previewed in the open modal (preset id, '#hex', or '' = default teal).
+    let _accentPending = '';
+
     function applySettings(s) {
       BASE = s.base ?? 23000;
       TRAVEL = s.travel ?? 35;
@@ -6,6 +9,10 @@
       OTHER_INCOMES = s.otherIncomes ?? [];
       OTHER_DEDUCTIONS = s.otherDeductions ?? [];
       HOURLY = BASE / 30 / 9;
+      // Accent: mirror to localStorage (the pre-paint source for the next load) and apply now.
+      const accent = s.accent || '';
+      localStorage.setItem('accent', accent);
+      applyAccent(accent, document.documentElement.classList.contains('dark'));
       document.getElementById('hdr-note').textContent =
         `Base ฿${BASE.toLocaleString()} · SSF ฿${SSF.toLocaleString()} · Travel ฿${TRAVEL}/day`;
     }
@@ -22,7 +29,38 @@
       renderOtherIncomeRows();
       renderOtherDeductionRows();
       previewHourly();
+      _accentPending = localStorage.getItem('accent') || '';
+      renderAccentSwatches();
       document.getElementById('setbg').classList.add('open');
+    }
+
+    function renderAccentSwatches() {
+      const wrap = document.getElementById('accent-swatches');
+      if (!wrap) return;
+      const isCustom = String(_accentPending || '').charAt(0) === '#';
+      const cur = isCustom ? 'custom' : (_accentPending || 'teal');
+      wrap.innerHTML = ACCENT_PRESETS.map(p =>
+        `<button type="button" class="acc-sw${cur === p.id ? ' active' : ''}" title="${p.label}" style="background:${p.color}" onclick="selectAccent('${p.id}')"></button>`
+      ).join('');
+      const ci = document.getElementById('set-accent-custom');
+      if (ci) {
+        ci.classList.toggle('active', isCustom);
+        if (isCustom) { ci.value = _accentPending; }
+        else { const p = ACCENT_PRESETS.find(x => x.id === cur); if (p) ci.value = p.color; }
+      }
+    }
+
+    // Live-preview a preset / custom colour (committed only on Save; reverted on Cancel).
+    function selectAccent(id) {
+      _accentPending = id;
+      applyAccent(id, document.documentElement.classList.contains('dark'));
+      renderAccentSwatches();
+    }
+
+    function selectAccentCustom(hex) {
+      _accentPending = hex;
+      applyAccent(hex, document.documentElement.classList.contains('dark'));
+      renderAccentSwatches();
     }
 
     function renderOtherIncomeRows() {
@@ -106,7 +144,11 @@
       document.getElementById('set-hrate').textContent = `฿${fmt(base / 30 / 9)}/hr`;
     }
 
-    function closeSettings() { document.getElementById('setbg').classList.remove('open'); }
+    function closeSettings() {
+      // Undo any unsaved live preview back to the committed accent.
+      applyAccent(localStorage.getItem('accent') || '', document.documentElement.classList.contains('dark'));
+      document.getElementById('setbg').classList.remove('open');
+    }
 
     async function saveSettings() {
       const base = parseFloat(document.getElementById('set-base').value);
@@ -115,7 +157,7 @@
       if ([base, travel, ssf].some(v => isNaN(v) || v < 0)) return;
       collectOtherIncomes();
       collectOtherDeductions();
-      const s = { base, travel, ssf, otherIncomes: OTHER_INCOMES, otherDeductions: OTHER_DEDUCTIONS };
+      const s = { base, travel, ssf, otherIncomes: OTHER_INCOMES, otherDeductions: OTHER_DEDUCTIONS, accent: _accentPending };
       db.collection('users').doc(currentUser.uid).set({ settings: s }, { merge: true });
       applySettings(s);
       renderAll();

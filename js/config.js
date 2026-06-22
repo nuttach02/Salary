@@ -3,7 +3,7 @@
     // Firebase Console → Project Settings → Your apps → SDK setup & configuration
     const firebaseConfig = {
       apiKey: "AIzaSyD9f6aVhx1w_NGNA_FBpK8BMxTsdvkQhFc",
-      authDomain: "salary-32127.firebaseapp.com",
+      authDomain: "salary-32127.web.app",
       projectId: "salary-32127",
       storageBucket: "salary-32127.appspot.com",
       messagingSenderId: "753481221416",
@@ -48,6 +48,8 @@
       document.documentElement.classList.toggle('dark');
       const dark = document.documentElement.classList.contains('dark');
       localStorage.setItem('theme', dark ? 'dark' : 'light');
+      // Re-derive a custom accent for the new mode (inline vars don't follow the toggle).
+      applyAccent(localStorage.getItem('accent') || '', dark);
       applyThemeIcon();
     }
 

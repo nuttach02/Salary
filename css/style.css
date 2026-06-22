@@ -4,6 +4,10 @@
       --blue-lt: #e2f4f6;
       --on-accent: #ffffff;
       --grad-2: #004f59;
+      /* Header text (follows accent in light; forced white over the black header in dark) */
+      --on-header: var(--on-accent);
+      /* Gradient start for the accent headers (auth / section / year). Light = the accent itself. */
+      --grad-1: var(--blue);
       /* Worked / positive */
       --green: #23773d;
       --green-lt: #e3f6e6;
@@ -16,6 +20,8 @@
       /* OT accent */
       --orange: #cf6f19;
       --orange-lt: #ffefe0;
+      /* OT hours text in calendar cells — fixed, intentionally NOT themed */
+      --ot-text: #007985;
       /* Neutrals — tinted toward the teal primary, not pure gray */
       --gray: #4b5961;
       --border: #d3dde0;
@@ -30,7 +36,7 @@
       --badge-sat-color: #065da0;
       --badge-sun-color: #b13131;
       --badge-hol-color: #775223;
-      --blue-bright: #afd5fe;
+      --sat-worked-bg: #afd5fe;
       --blacktap: var(--blue);
       --sun-bg: #ffc6c0;
       --worked-bg: #b5e6be;
@@ -49,6 +55,8 @@
       --blue-lt: #0d373b;
       --on-accent: #04191f;
       --grad-2: #0a3a43;
+      --on-header: #ffffff;
+      --grad-1: #0e5a63;
       --green: #69c27e;
       --green-lt: #1a3821;
       --red: #f07f77;
@@ -57,6 +65,7 @@
       --yellow-lt: #433215;
       --orange: #f49752;
       --orange-lt: #482f1a;
+      --ot-text: #3fb8be;
       --gray: #9aa7ae;
       --border: #31383c;
       --bg: #0b1115;
@@ -70,7 +79,7 @@
       --badge-sat-color: #91c3f6;
       --badge-sun-color: #ff9890;
       --badge-hol-color: #eac07a;
-      --blue-bright: #194f81;
+      --sat-worked-bg: #194f81;
       --sun-bg: var(--red-lt);
       --worked-bg: var(--green-lt);
       --sat-bg: #1c354e;
@@ -80,6 +89,46 @@
       --leave-badge-bg: #463968;
       --leave-badge-tx: #d1c3ff;
     }
+
+    /* ── ACCENT PRESETS ──────────────────────────────────────────────────────────
+       Each preset overrides only the brand/accent group; semantic calendar colours
+       (green/red/yellow/orange) stay fixed. The default teal needs no block.
+       data-accent is set on <html> pre-paint by theme-init.js (like the dark class),
+       so html.dark[...] out-specifies :root[...] and the dark toggle keeps working
+       with zero re-application.
+       INVARIANT: each preset's light and dark block MUST set the identical var set —
+       :root[data-accent] (0,2,0) out-specifies base html.dark (0,1,1), so any var the
+       light block sets but the dark twin omits would leak into dark mode. */
+    :root[data-accent="ocean"]    { --blue:#1f6feb; --blue-lt:#e7f0ff; --on-accent:#ffffff; --grad-1:#1f6feb; --grad-2:#0a45b0; }
+    html.dark[data-accent="ocean"]{ --blue:#5e9bff; --blue-lt:#11223f; --on-accent:#04121f; --grad-1:#123a78; --grad-2:#0c2550; }
+
+    :root[data-accent="indigo"]    { --blue:#5b51d8; --blue-lt:#ecebfc; --on-accent:#ffffff; --grad-1:#5b51d8; --grad-2:#3a2fae; }
+    html.dark[data-accent="indigo"]{ --blue:#9a92f5; --blue-lt:#1e1a3d; --on-accent:#0a0820; --grad-1:#2f2880; --grad-2:#1f1a55; }
+
+    :root[data-accent="forest"]    { --blue:#1f8a4c; --blue-lt:#e3f6e9; --on-accent:#ffffff; --grad-1:#1f8a4c; --grad-2:#0f5e31; }
+    html.dark[data-accent="forest"]{ --blue:#4cc47b; --blue-lt:#0f2b1a; --on-accent:#04140a; --grad-1:#145232; --grad-2:#0c3420; }
+
+    :root[data-accent="plum"]    { --blue:#b03a8e; --blue-lt:#fae8f3; --on-accent:#ffffff; --grad-1:#b03a8e; --grad-2:#7d2563; }
+    html.dark[data-accent="plum"]{ --blue:#e07ac0; --blue-lt:#371228; --on-accent:#1f0716; --grad-1:#6e2452; --grad-2:#4a173a; }
+
+    :root[data-accent="sunset"]    { --blue:#d05a1e; --blue-lt:#ffece0; --on-accent:#ffffff; --grad-1:#d05a1e; --grad-2:#9c3f12; }
+    html.dark[data-accent="sunset"]{ --blue:#f0904f; --blue-lt:#3a1d0e; --on-accent:#1f0c04; --grad-1:#6e3a1c; --grad-2:#4a2510; }
+
+    /* Accent picker swatches in the Settings modal */
+    .acc-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 0 }
+    .acc-swatches { display: flex; gap: 8px }
+    .acc-div { width: 1px; height: 22px; background: var(--border) }
+    .acc-sw {
+      width: 26px; height: 26px; border-radius: 50%;
+      border: 2px solid var(--border); cursor: pointer; padding: 0;
+      transition: transform .12s
+    }
+    .acc-sw:hover { transform: scale(1.12) }
+    .acc-sw.active { border-color: var(--card); box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--blue) }
+    .acc-custom { background: conic-gradient(from 90deg, #f44, #fd4, #4d4, #4dd, #44f, #d4f, #f44) }
+    .acc-custom::-webkit-color-swatch-wrapper { padding: 0 }
+    .acc-custom::-webkit-color-swatch { border: none; border-radius: 50% }
+    .acc-custom::-moz-color-swatch { border: none; border-radius: 50% }
 
     * {
       box-sizing: border-box;
@@ -179,7 +228,7 @@
     .bm-demo-btn {
       display: inline-block;
       background: var(--blue);
-      color: #fff;
+      color: var(--on-accent);
       padding: 4px 10px;
       border-radius: 6px;
       font-size: .68rem;
@@ -241,7 +290,7 @@
       top: 48px;
       left: 14px;
       background: var(--blue);
-      color: #fff;
+      color: var(--on-accent);
       border: none;
       padding: 5px 11px;
       border-radius: 6px;
@@ -388,7 +437,7 @@
 
     @keyframes s3bm {
       0%, 46%   { background: var(--blue-lt); color: var(--blue) }
-      50%       { background: var(--blue); color: #fff }
+      50%       { background: var(--blue); color: var(--on-accent) }
       58%, 100% { background: var(--blue-lt); color: var(--blue) }
     }
 
@@ -539,14 +588,10 @@
     }
 
     .auth-hdr {
-      background: linear-gradient(135deg, var(--blue), var(--grad-2));
+      background: linear-gradient(135deg, var(--grad-1), var(--grad-2));
       color: #fff;
       padding: 28px 24px 20px;
       text-align: center
-    }
-
-    html.dark .auth-hdr {
-      background: linear-gradient(135deg, #0e5a63, var(--grad-2))
     }
 
     .auth-hdr h1 {
@@ -710,7 +755,7 @@
     /* ── HEADER ──────────────────────────────────────────────────────────────── */
     .hdr {
       background: var(--blacktap);
-      color: #fff;
+      color: var(--on-header);
       padding: 12px 20px;
       display: flex;
       align-items: center;
@@ -737,7 +782,7 @@
     .mnav button {
       background: none;
       border: none;
-      color: #fff;
+      color: var(--on-header);
       width: 36px;
       height: 36px;
       cursor: pointer;
@@ -766,7 +811,7 @@
     .theme-btn {
       background: rgba(255, 255, 255, .18);
       border: none;
-      color: #fff;
+      color: var(--on-header);
       width: 36px;
       height: 36px;
       border-radius: 8px;
@@ -813,7 +858,7 @@
     }
 
     .user-chip .usign:hover {
-      color: #fff
+      color: var(--on-header)
     }
 
     /* ── LAYOUT ──────────────────────────────────────────────────────────────── */
@@ -988,7 +1033,7 @@
     }
 
     .bg-sat-worked {
-      background: var(--blue-bright);
+      background: var(--sat-worked-bg);
       border-left: 3px solid var(--badge-sat-color)
     }
 
@@ -1043,7 +1088,7 @@
 
     .ot-lines {
       font-size: .62rem;
-      color: var(--blue);
+      color: var(--ot-text);
       margin-top: 2px;
       line-height: 1.4
     }
@@ -1087,12 +1132,8 @@
       padding: 13px 16px;
       font-weight: 700;
       font-size: .95rem;
-      background: linear-gradient(135deg, var(--blue), var(--grad-2));
+      background: linear-gradient(135deg, var(--grad-1), var(--grad-2));
       color: #fff
-    }
-
-    html.dark .stitle {
-      background: linear-gradient(135deg, #0e5a63, var(--grad-2))
     }
 
     .sbody {
@@ -2096,7 +2137,7 @@
       padding: 13px 16px;
       font-weight: 700;
       font-size: .95rem;
-      background: linear-gradient(135deg, var(--blue), var(--grad-2));
+      background: linear-gradient(135deg, var(--grad-1), var(--grad-2));
       color: #fff
     }
 
