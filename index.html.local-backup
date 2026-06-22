@@ -1,0 +1,1689 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Salary Calculator – THB</title>
+  <script>if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark')</script>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <style>
+    :root {
+      --blue: #1a73e8;
+      --blue-lt: #e8f0fe;
+      --green: #34a853;
+      --green-lt: #e6f4ea;
+      --red: #ea4335;
+      --red-lt: #fce8e6;
+      --yellow: #f59e0b;
+      --yellow-lt: #fef3c7;
+      --orange: #f97316;
+      --orange-lt: #fff7ed;
+      --gray: #5f6368;
+      --border: #dadce0;
+      --bg: #f0f4f8;
+      --card: #ffffff;
+      --text: #1f2937;
+      --surface: #f1f3f4;
+      --surface2: #e8eaed;
+      --input-bg: #fff;
+      --hol-text: #78350f;
+      --badge-wd-color: #137333;
+      --badge-sat-color: #1251a3;
+      --badge-sun-color: #c5221f;
+      --badge-hol-color: #78350f;
+    }
+
+    html.dark {
+      --blue: #60a5fa;
+      --blue-lt: #172554;
+      --green: #4ade80;
+      --green-lt: #052e16;
+      --red: #f87171;
+      --red-lt: #450a0a;
+      --yellow: #fbbf24;
+      --yellow-lt: #431407;
+      --orange: #fb923c;
+      --orange-lt: #431407;
+      --gray: #94a3b8;
+      --border: #334155;
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #e2e8f0;
+      --surface: #334155;
+      --surface2: #475569;
+      --input-bg: #1e293b;
+      --hol-text: #1c1917;
+      --badge-wd-color: #86efac;
+      --badge-sat-color: #93c5fd;
+      --badge-sun-color: #fca5a5;
+      --badge-hol-color: #fcd34d;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    body {
+      font-family: 'Segoe UI', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      transition: background .2s, color .2s
+    }
+
+    /* ── LOADING SCREEN ──────────────────────────────────────────────────────── */
+    #loading-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 600;
+      color: var(--gray);
+      font-size: .95rem;
+      gap: 10px
+    }
+
+    #loading-screen.hidden {
+      display: none
+    }
+
+    .spin {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin .7s linear infinite
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    /* ── AUTH SCREEN ─────────────────────────────────────────────────────────── */
+    #auth-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 500;
+      padding: 16px
+    }
+
+    #auth-screen.hidden {
+      display: none
+    }
+
+    .auth-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: 380px;
+      max-width: 100%;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, .15)
+    }
+
+    .auth-hdr {
+      background: linear-gradient(135deg, var(--blue), #1251a3);
+      color: #fff;
+      padding: 28px 24px 20px;
+      text-align: center
+    }
+
+    html.dark .auth-hdr {
+      background: linear-gradient(135deg, #1e40af, #1e3a8a)
+    }
+
+    .auth-hdr h1 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 4px
+    }
+
+    .auth-hdr p {
+      font-size: .8rem;
+      opacity: .8
+    }
+
+    .auth-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .auth-tab {
+      flex: 1;
+      padding: 11px;
+      border: none;
+      background: none;
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--gray);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: .15s
+    }
+
+    .auth-tab.active {
+      color: var(--blue);
+      border-bottom-color: var(--blue);
+      background: var(--blue-lt)
+    }
+
+    .auth-body {
+      padding: 20px 22px 24px
+    }
+
+    .auth-field {
+      margin-bottom: 13px
+    }
+
+    .auth-field label {
+      display: block;
+      font-size: .78rem;
+      font-weight: 600;
+      color: var(--gray);
+      margin-bottom: 5px
+    }
+
+    .auth-field input {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: .9rem;
+      background: var(--input-bg);
+      color: var(--text);
+      outline: none;
+      transition: border-color .15s
+    }
+
+    .auth-field input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 2px var(--blue-lt)
+    }
+
+    .auth-submit {
+      width: 100%;
+      padding: 10px;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: .9rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: opacity .15s
+    }
+
+    .auth-submit:hover {
+      opacity: .88
+    }
+
+    .auth-submit:disabled {
+      opacity: .5;
+      cursor: not-allowed
+    }
+
+    .auth-err {
+      background: var(--red-lt);
+      color: var(--red);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: .79rem;
+      margin-bottom: 12px;
+      display: none;
+      line-height: 1.45
+    }
+
+    .auth-err.show {
+      display: block
+    }
+
+    /* ── HEADER ──────────────────────────────────────────────────────────────── */
+    .hdr {
+      background: var(--blue);
+      color: #fff;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .3)
+    }
+
+    .hdr h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      flex: 1;
+      white-space: nowrap
+    }
+
+    .mnav {
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, .18);
+      border-radius: 8px;
+      overflow: hidden
+    }
+
+    .mnav button {
+      background: none;
+      border: none;
+      color: #fff;
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1
+    }
+
+    .mnav button:hover {
+      background: rgba(255, 255, 255, .28)
+    }
+
+    .mnav .mlabel {
+      min-width: 155px;
+      text-align: center;
+      font-weight: 600;
+      font-size: .9rem;
+      padding: 0 6px
+    }
+
+    .hdr-note {
+      font-size: .72rem;
+      opacity: .75;
+      white-space: nowrap
+    }
+
+    .theme-btn {
+      background: rgba(255, 255, 255, .18);
+      border: none;
+      color: #fff;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: .15s
+    }
+
+    .theme-btn:hover {
+      background: rgba(255, 255, 255, .28)
+    }
+
+    .user-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, .15);
+      border-radius: 8px;
+      padding: 4px 10px 4px 8px
+    }
+
+    .user-chip .uname {
+      font-size: .78rem;
+      font-weight: 600;
+      max-width: 130px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    .user-chip .usign {
+      background: none;
+      border: none;
+      color: rgba(255, 255, 255, .8);
+      font-size: .72rem;
+      cursor: pointer;
+      padding: 0;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      white-space: nowrap
+    }
+
+    .user-chip .usign:hover {
+      color: #fff
+    }
+
+    /* ── LAYOUT ──────────────────────────────────────────────────────────────── */
+    .body {
+      display: flex;
+      gap: 16px;
+      padding: 16px;
+      max-width: 1300px;
+      margin: 0 auto
+    }
+
+    .cal-panel {
+      flex: 1;
+      min-width: 0
+    }
+
+    .sum-panel {
+      width: 295px;
+      flex-shrink: 0
+    }
+
+    /* ── TABS ────────────────────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      background: var(--card);
+      border-radius: 12px 12px 0 0;
+      border: 1px solid var(--border);
+      border-bottom: none;
+      overflow: hidden;
+      transition: background .2s, border-color .2s
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 11px 8px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: .82rem;
+      font-weight: 600;
+      color: var(--gray);
+      border-bottom: 3px solid transparent;
+      transition: .15s;
+      text-align: center
+    }
+
+    .tab-btn .sub {
+      font-size: .68rem;
+      font-weight: 400;
+      opacity: .75;
+      display: block;
+      margin-top: 2px
+    }
+
+    .tab-btn.active {
+      color: var(--blue);
+      border-bottom-color: var(--blue);
+      background: var(--blue-lt)
+    }
+
+    .tab-btn:hover:not(.active) {
+      background: var(--surface)
+    }
+
+    /* ── CALENDAR CARD ───────────────────────────────────────────────────────── */
+    .cal-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0 0 12px 12px;
+      padding: 14px;
+      transition: background .2s, border-color .2s
+    }
+
+    .tab-pane {
+      display: none
+    }
+
+    .tab-pane.active {
+      display: block
+    }
+
+    /* ── LEGEND ──────────────────────────────────────────────────────────────── */
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+      font-size: .71rem;
+      color: var(--text)
+    }
+
+    .leg-item {
+      display: flex;
+      align-items: center;
+      gap: 4px
+    }
+
+    .leg-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 3px;
+      border: 1px solid rgba(128, 128, 128, .2)
+    }
+
+    /* ── CALENDAR GRID ───────────────────────────────────────────────────────── */
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 3px
+    }
+
+    .cdow {
+      text-align: center;
+      font-size: .7rem;
+      font-weight: 700;
+      color: var(--gray);
+      padding: 4px 2px
+    }
+
+    .cdow.sun {
+      color: var(--red)
+    }
+
+    .cdow.sat {
+      color: var(--blue)
+    }
+
+    .ccell {
+      min-height: 60px;
+      border-radius: 7px;
+      border: 1.5px solid var(--border);
+      cursor: pointer;
+      padding: 4px 5px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      transition: border-color .15s, box-shadow .15s;
+      position: relative;
+      font-size: .78rem
+    }
+
+    .ccell:hover {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 2px var(--blue-lt)
+    }
+
+    .ccell.empty {
+      border: none;
+      background: transparent !important;
+      cursor: default
+    }
+
+    .ccell.empty:hover {
+      box-shadow: none;
+      border: none
+    }
+
+    .ccell.today {
+      box-shadow: 0 0 0 2px var(--blue)
+    }
+
+    .ccell.prev {
+      opacity: .5
+    }
+
+    .bg-sun {
+      background: var(--red-lt)
+    }
+
+    .bg-sat {
+      background: var(--blue-lt)
+    }
+
+    .bg-sat-worked {
+      background: var(--green-lt);
+      border-left: 3px solid var(--badge-sat-color)
+    }
+
+    .bg-sat-absent {
+      background: var(--surface);
+      border-left: 3px solid var(--badge-sat-color)
+    }
+
+    .bg-worked {
+      background: var(--green-lt)
+    }
+
+    .bg-absent {
+      background: var(--surface)
+    }
+
+    .bg-holiday {
+      background: var(--yellow-lt)
+    }
+
+    .dnum {
+      font-weight: 700;
+      font-size: .8rem;
+      line-height: 1.2
+    }
+
+    .dnum.dim {
+      color: var(--gray)
+    }
+
+    .dmonth {
+      font-size: .58rem;
+      color: var(--gray);
+      line-height: 1
+    }
+
+    .hol-badge {
+      font-size: .58rem;
+      background: var(--yellow);
+      color: var(--hol-text);
+      border-radius: 3px;
+      padding: 1px 4px;
+      line-height: 1.4;
+      margin-top: 2px;
+      display: inline-block
+    }
+
+    .ot-lines {
+      font-size: .62rem;
+      color: var(--blue);
+      margin-top: 2px;
+      line-height: 1.4
+    }
+
+    .travel-dot {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green)
+    }
+
+    .ot-dot {
+      position: absolute;
+      right: 4px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--orange);
+      border: 1.5px solid rgba(255, 255, 255, .45)
+    }
+
+    .ccell.has-ot {
+      border-left: 3px solid var(--orange)
+    }
+
+    /* ── SUMMARY ─────────────────────────────────────────────────────────────── */
+    .scard {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      position: sticky;
+      top: 16px;
+      transition: background .2s, border-color .2s
+    }
+
+    .stitle {
+      padding: 13px 16px;
+      font-weight: 700;
+      font-size: .95rem;
+      background: linear-gradient(135deg, var(--blue), #1251a3);
+      color: #fff
+    }
+
+    html.dark .stitle {
+      background: linear-gradient(135deg, #1e40af, #1e3a8a)
+    }
+
+    .sbody {
+      padding: 12px 16px
+    }
+
+    .ssect {
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--gray);
+      letter-spacing: .05em;
+      margin: 10px 0 5px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border)
+    }
+
+    .ssect:first-child {
+      margin-top: 0;
+      border-top: none;
+      padding-top: 0
+    }
+
+    .srow {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 3.5px 0;
+      font-size: .83rem
+    }
+
+    .srow .sl {
+      color: var(--gray)
+    }
+
+    .srow .sv {
+      font-weight: 500;
+      color: var(--text)
+    }
+
+    .sv.pos {
+      color: var(--green)
+    }
+
+    .sv.neg {
+      color: var(--red)
+    }
+
+    .sgross {
+      display: flex;
+      justify-content: space-between;
+      font-weight: 600;
+      font-size: .88rem;
+      padding: 8px 0 0;
+      margin-top: 4px;
+      border-top: 1px solid var(--border)
+    }
+
+    .snet {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 10px -16px -12px;
+      padding: 14px 16px;
+      background: var(--green-lt);
+      border-top: 2px solid var(--green)
+    }
+
+    .snet .nl {
+      font-weight: 700;
+      font-size: .95rem
+    }
+
+    .snet .nv {
+      font-weight: 800;
+      font-size: 1.25rem;
+      color: var(--green)
+    }
+
+    /* ── MODAL ───────────────────────────────────────────────────────────────── */
+    .mbg {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .55);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 16px
+    }
+
+    .mbg.open {
+      display: flex
+    }
+
+    .modal {
+      background: var(--card);
+      color: var(--text);
+      border-radius: 16px;
+      padding: 22px;
+      width: 390px;
+      max-width: 100%;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, .35);
+      max-height: 90vh;
+      overflow-y: auto;
+      border: 1px solid var(--border)
+    }
+
+    .mhdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px
+    }
+
+    .mhdr h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text)
+    }
+
+    .mcls {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.1rem;
+      color: var(--gray);
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center
+    }
+
+    .mcls:hover {
+      background: var(--surface)
+    }
+
+    .mtype {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: .75rem;
+      font-weight: 700;
+      margin-bottom: 14px
+    }
+
+    .mtype.weekday {
+      background: var(--green-lt);
+      color: var(--badge-wd-color)
+    }
+
+    .mtype.saturday {
+      background: var(--blue-lt);
+      color: var(--badge-sat-color)
+    }
+
+    .mtype.sunday {
+      background: var(--red-lt);
+      color: var(--badge-sun-color)
+    }
+
+    .mtype.holiday {
+      background: var(--yellow-lt);
+      color: var(--badge-hol-color)
+    }
+
+    .trow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .trow:last-of-type {
+      border-bottom: none
+    }
+
+    .trow .tl {
+      font-size: .88rem;
+      font-weight: 500;
+      color: var(--text)
+    }
+
+    .trow .td {
+      font-size: .73rem;
+      color: var(--gray);
+      margin-top: 1px
+    }
+
+    .sw {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0
+    }
+
+    .sw input {
+      opacity: 0;
+      width: 0;
+      height: 0
+    }
+
+    .sw-sl {
+      position: absolute;
+      inset: 0;
+      background: var(--surface2);
+      border-radius: 24px;
+      cursor: pointer;
+      transition: .2s
+    }
+
+    .sw-sl::before {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #fff;
+      left: 3px;
+      top: 3px;
+      transition: .2s
+    }
+
+    .sw input:checked~.sw-sl {
+      background: var(--green)
+    }
+
+    .sw input:checked~.sw-sl::before {
+      transform: translateX(20px)
+    }
+
+    .otsect {
+      margin-top: 14px
+    }
+
+    .otsect h4 {
+      font-size: .75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--gray);
+      letter-spacing: .05em;
+      margin-bottom: 8px
+    }
+
+    .otrow {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 7px
+    }
+
+    .otlabel {
+      font-size: .82rem;
+      min-width: 110px;
+      color: var(--text)
+    }
+
+    .otinp {
+      flex: 1;
+      padding: 6px 9px;
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      font-size: .9rem;
+      outline: none;
+      text-align: right;
+      max-width: 70px;
+      background: var(--input-bg);
+      color: var(--text)
+    }
+
+    .otinp:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 2px var(--blue-lt)
+    }
+
+    .otunit {
+      font-size: .75rem;
+      color: var(--gray);
+      min-width: 22px
+    }
+
+    .otprev {
+      font-size: .72rem;
+      color: var(--green);
+      min-width: 72px;
+      text-align: right
+    }
+
+    .ottotal {
+      text-align: right;
+      font-size: .8rem;
+      font-weight: 700;
+      color: var(--green);
+      padding-top: 6px;
+      margin-top: 2px;
+      border-top: 1px solid var(--border)
+    }
+
+    .info-box {
+      background: var(--blue-lt);
+      border-radius: 8px;
+      padding: 8px 11px;
+      font-size: .76rem;
+      color: var(--badge-sat-color);
+      margin-top: 10px;
+      line-height: 1.5
+    }
+
+    .mactions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 18px
+    }
+
+    .btn {
+      padding: 8px 20px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: .85rem;
+      font-weight: 600;
+      transition: .15s
+    }
+
+    .btn-p {
+      background: var(--blue);
+      color: #fff
+    }
+
+    .btn-p:hover {
+      opacity: .88
+    }
+
+    .btn-c {
+      background: var(--surface);
+      color: var(--text)
+    }
+
+    .btn-c:hover {
+      background: var(--surface2)
+    }
+
+    @media(max-width:900px) {
+      .body {
+        flex-direction: column
+      }
+
+      .sum-panel {
+        width: 100%
+      }
+
+      .scard {
+        position: static
+      }
+    }
+
+    @media(max-width:600px) {
+      .ccell {
+        min-height: 46px
+      }
+
+      .hdr {
+        flex-direction: column;
+        gap: 8px
+      }
+
+      .hdr h1 {
+        text-align: center;
+        flex: none
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Loading (while Firebase checks auth state) -->
+  <div id="loading-screen">
+    <div class="spin"></div> Signing in…
+  </div>
+
+  <!-- Auth screen -->
+  <div id="auth-screen" class="hidden">
+    <div class="auth-card">
+      <div class="auth-hdr">
+        <h1>💼 Salary Calculator</h1>
+        <p>Sign in to access your salary records</p>
+      </div>
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="atab-in" onclick="switchAuthTab('in')">Sign In</button>
+        <button class="auth-tab" id="atab-up" onclick="switchAuthTab('up')">Create Account</button>
+      </div>
+      <div class="auth-body">
+        <div class="auth-err" id="auth-err"></div>
+        <div class="auth-field">
+          <label for="auth-email">Email</label>
+          <input type="email" id="auth-email" placeholder="you@example.com" autocomplete="email"
+            onkeydown="if(event.key==='Enter')document.getElementById('auth-pass').focus()">
+        </div>
+        <div class="auth-field">
+          <label for="auth-pass">Password</label>
+          <input type="password" id="auth-pass" placeholder="Password" autocomplete="current-password"
+            onkeydown="if(event.key==='Enter')submitAuth()">
+        </div>
+        <button class="auth-submit" id="auth-btn" onclick="submitAuth()">Sign In</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- App (hidden until signed in) -->
+  <div id="app" style="display:none">
+
+    <header class="hdr">
+      <h1>💼 Salary Calculator</h1>
+      <div class="mnav">
+        <button onclick="changeMonth(-1)">&#9664;</button>
+        <div class="mlabel" id="mlabel">—</div>
+        <button onclick="changeMonth(1)">&#9654;</button>
+      </div>
+      <span class="hdr-note" id="hdr-note">Base ฿23,000 · SSF ฿875 · Travel ฿35/day</span>
+      <button class="theme-btn" onclick="openSettings()" title="Edit salary settings">⚙️</button>
+      <button class="theme-btn" id="theme-btn" onclick="toggleDark()" title="Toggle dark mode">🌙</button>
+      <div class="user-chip">
+        <span class="uname" id="uname">—</span>
+        <button class="usign" onclick="logout()">Sign out</button>
+      </div>
+    </header>
+
+    <div class="body">
+      <div class="cal-panel">
+        <div class="tabs">
+          <button class="tab-btn active" id="tab-ot" onclick="switchTab('ot')">
+            📅 OT Period
+            <span class="sub" id="ot-sub">—</span>
+          </button>
+          <button class="tab-btn" id="tab-att" onclick="switchTab('att')">
+            ✅ Attendance
+            <span class="sub" id="att-sub">—</span>
+          </button>
+        </div>
+        <div class="cal-card">
+          <div id="pane-ot" class="tab-pane active">
+            <div class="legend">
+              <div class="leg-item">
+                <div class="leg-dot" style="background:var(--green-lt)"></div>Worked
+              </div>
+              <div class="leg-item">
+                <div class="leg-dot" style="background:var(--surface)"></div>Absent
+              </div>
+              <div class="leg-item">
+                <div class="leg-dot" style="background:var(--blue-lt)"></div>Saturday
+              </div>
+              <div class="leg-item">
+                <div class="leg-dot" style="background:var(--red-lt)"></div>Sunday
+              </div>
+              <div class="leg-item">
+                <div class="leg-dot" style="background:var(--yellow-lt)"></div>Holiday
+              </div>
+              <div class="leg-item">
+                <div class="leg-dot" style="background:var(--green-lt);opacity:.45"></div>Prev month
+              </div>
+              <div class="leg-item">
+                <div class="leg-dot" style="background:var(--card);border-left:3px solid var(--orange)"></div>OT
+                recorded
+              </div>
+            </div>
+            <div class="cal-grid" id="ot-grid"></div>
+          </div>
+          <div id="pane-att" class="tab-pane">
+            <div class="legend">
+              <div class="leg-item">
+                <div class="leg-dot" style="background:var(--green-lt)"></div>Worked + travel ฿35/day
+              </div>
+              <div class="leg-item">
+                <div class="leg-dot" style="background:var(--surface)"></div>Absent
+              </div>
+              <div class="leg-item">
+                <div class="leg-dot" style="background:var(--blue-lt)"></div>Saturday (off)
+              </div>
+              <div class="leg-item">
+                <div class="leg-dot" style="background:var(--green-lt);border-left:3px solid var(--badge-sat-color)"></div>Sat worked
+              </div>
+              <div class="leg-item">
+                <div class="leg-dot" style="background:var(--red-lt)"></div>Sunday
+              </div>
+              <div class="leg-item">
+                <div class="leg-dot" style="background:var(--yellow-lt)"></div>Holiday
+              </div>
+              <div class="leg-item">
+                <div class="leg-dot" style="background:var(--card);border-left:3px solid var(--orange)"></div>OT recorded
+              </div>
+            </div>
+            <div class="cal-grid" id="att-grid"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sum-panel">
+        <div class="scard">
+          <div class="stitle">📊 Monthly Summary</div>
+          <div class="sbody" id="sbody">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /#app -->
+
+  <!-- Day Edit Modal -->
+  <div class="mbg" id="mbg" onclick="bgClick(event)">
+    <div class="modal" id="modal">
+      <div class="mhdr">
+        <h3 id="mtitle">Edit Day</h3>
+        <button class="mcls" onclick="closeModal()">✕</button>
+      </div>
+      <div id="mcontent"></div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="mbg" id="setbg" onclick="settingsBgClick(event)">
+    <div class="modal" style="width:360px">
+      <div class="mhdr">
+        <h3>⚙️ Salary Settings</h3>
+        <button class="mcls" onclick="closeSettings()">✕</button>
+      </div>
+      <div class="otsect" style="margin-top:6px">
+        <h4>Income</h4>
+        <div class="otrow">
+          <span class="otlabel">Base Salary (฿)</span>
+          <input type="number" class="otinp" id="set-base" min="0" step="100" style="max-width:110px"
+            oninput="previewHourly()">
+          <span class="otunit"></span>
+        </div>
+        <div class="otrow">
+          <span class="otlabel">Travel per Day (฿)</span>
+          <input type="number" class="otinp" id="set-travel" min="0" step="5" style="max-width:110px">
+          <span class="otunit"></span>
+        </div>
+      </div>
+      <div class="otsect">
+        <h4>Deductions</h4>
+        <div class="otrow">
+          <span class="otlabel">SSF (฿)</span>
+          <input type="number" class="otinp" id="set-ssf" min="0" step="50" style="max-width:110px">
+          <span class="otunit"></span>
+        </div>
+      </div>
+      <div class="srow" style="margin-top:10px;padding:8px 0;border-top:1px solid var(--border)">
+        <span class="sl" style="font-size:.8rem">Hourly OT rate (Base ÷ 30 ÷ 9)</span>
+        <span class="sv" id="set-hrate" style="color:var(--blue);font-size:.82rem">—</span>
+      </div>
+      <div class="mactions">
+        <button class="btn btn-c" onclick="closeSettings()">Cancel</button>
+        <button class="btn btn-p" onclick="saveSettings()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── FIREBASE CONFIG ────────────────────────────────────────────────────────
+    // TODO: Replace every value below with your Firebase project config.
+    // Firebase Console → Project Settings → Your apps → SDK setup & configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyD9f6aVhx1w_NGNA_FBpK8BMxTsdvkQhFc",
+      authDomain: "salary-32127.firebaseapp.com",
+      projectId: "salary-32127",
+      storageBucket: "salary-32127.appspot.com",
+      messagingSenderId: "753481221416",
+      appId: "1:753481221416:web:0598587661f99f3959fc1d"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // ── SETTINGS (editable, per-user) ──────────────────────────────────────────
+    let BASE = 23000;
+    let TRAVEL = 35;
+    let SSF = 875;
+    let HOURLY = BASE / 30 / 9;
+
+    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'];
+    const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    // ── STATE ──────────────────────────────────────────────────────────────────
+    let currentUser = null;
+    let Y = new Date().getFullYear();
+    let M = new Date().getMonth() + 1;
+    let editDate = null;
+    let mdata = {};
+
+    // ── DARK MODE ──────────────────────────────────────────────────────────────
+    function applyThemeIcon() {
+      const dark = document.documentElement.classList.contains('dark');
+      document.getElementById('theme-btn').textContent = dark ? '☀️' : '🌙';
+    }
+
+    function toggleDark() {
+      document.documentElement.classList.toggle('dark');
+      const dark = document.documentElement.classList.contains('dark');
+      localStorage.setItem('theme', dark ? 'dark' : 'light');
+      applyThemeIcon();
+    }
+
+    // ── AUTH UI ────────────────────────────────────────────────────────────────
+    let authMode = 'in';
+
+    function switchAuthTab(mode) {
+      authMode = mode;
+      document.getElementById('atab-in').classList.toggle('active', mode === 'in');
+      document.getElementById('atab-up').classList.toggle('active', mode === 'up');
+      document.getElementById('auth-btn').textContent = mode === 'in' ? 'Sign In' : 'Create Account';
+      document.getElementById('auth-err').classList.remove('show');
+      document.getElementById('auth-pass').autocomplete = mode === 'in' ? 'current-password' : 'new-password';
+    }
+
+    function showAuthError(msg) {
+      const el = document.getElementById('auth-err');
+      el.textContent = msg;
+      el.classList.add('show');
+    }
+
+    async function submitAuth() {
+      const email = document.getElementById('auth-email').value.trim();
+      const pass = document.getElementById('auth-pass').value;
+      const btn = document.getElementById('auth-btn');
+      if (!email || !pass) { showAuthError('Please enter your email and password.'); return; }
+
+      btn.disabled = true;
+      document.getElementById('auth-err').classList.remove('show');
+
+      try {
+        if (authMode === 'in') {
+          await auth.signInWithEmailAndPassword(email, pass);
+        } else {
+          await auth.createUserWithEmailAndPassword(email, pass);
+        }
+        // onAuthStateChanged takes it from here
+      } catch (err) {
+        btn.disabled = false;
+        const msgs = {
+          'auth/user-not-found': 'No account found with this email.',
+          'auth/wrong-password': 'Incorrect password.',
+          'auth/invalid-credential': 'Incorrect email or password.',
+          'auth/email-already-in-use': 'An account with this email already exists.',
+          'auth/weak-password': 'Password must be at least 6 characters.',
+          'auth/invalid-email': 'Invalid email address.',
+          'auth/too-many-requests': 'Too many failed attempts. Please try again later.',
+        };
+        showAuthError(msgs[err.code] || err.message);
+      }
+    }
+
+    function showApp() {
+      document.getElementById('loading-screen').classList.add('hidden');
+      document.getElementById('auth-screen').classList.add('hidden');
+      document.getElementById('app').style.display = '';
+      document.getElementById('uname').textContent = currentUser.email.split('@')[0];
+      applyThemeIcon();
+    }
+
+    function showAuthScreen() {
+      document.getElementById('loading-screen').classList.add('hidden');
+      document.getElementById('auth-screen').classList.remove('hidden');
+      document.getElementById('app').style.display = 'none';
+    }
+
+    async function logout() {
+      mdata = {};
+      await auth.signOut();
+    }
+
+    // ── SETTINGS MODAL ────────────────────────────────────────────────────────
+    function applySettings(s) {
+      BASE = s.base ?? 23000;
+      TRAVEL = s.travel ?? 35;
+      SSF = s.ssf ?? 875;
+      HOURLY = BASE / 30 / 9;
+      document.getElementById('hdr-note').textContent =
+        `Base ฿${BASE.toLocaleString()} · SSF ฿${SSF.toLocaleString()} · Travel ฿${TRAVEL}/day`;
+    }
+
+    async function loadSettings() {
+      const snap = await db.collection('users').doc(currentUser.uid).get();
+      if (snap.exists && snap.data().settings) applySettings(snap.data().settings);
+    }
+
+    function openSettings() {
+      document.getElementById('set-base').value = BASE;
+      document.getElementById('set-travel').value = TRAVEL;
+      document.getElementById('set-ssf').value = SSF;
+      previewHourly();
+      document.getElementById('setbg').classList.add('open');
+    }
+
+    function previewHourly() {
+      const base = parseFloat(document.getElementById('set-base').value) || 0;
+      document.getElementById('set-hrate').textContent = `฿${fmt(base / 30 / 9)}/hr`;
+    }
+
+    function closeSettings() { document.getElementById('setbg').classList.remove('open'); }
+
+    async function saveSettings() {
+      const base = parseFloat(document.getElementById('set-base').value);
+      const travel = parseFloat(document.getElementById('set-travel').value);
+      const ssf = parseFloat(document.getElementById('set-ssf').value);
+      if ([base, travel, ssf].some(v => isNaN(v) || v < 0)) return;
+      const s = { base, travel, ssf };
+      db.collection('users').doc(currentUser.uid).set({ settings: s }, { merge: true });
+      applySettings(s);
+      renderAll();
+      closeSettings();
+    }
+
+    function settingsBgClick(e) { if (e.target === document.getElementById('setbg')) closeSettings(); }
+
+    // ── STORAGE (Firestore, per-user) ──────────────────────────────────────────
+    const monthKey = (y, m) => `${y}_${String(m).padStart(2, '0')}`;
+
+    function userMonths() {
+      return db.collection('users').doc(currentUser.uid).collection('months');
+    }
+
+    async function loadMonth() {
+      const snap = await userMonths().doc(monthKey(Y, M)).get();
+      mdata = snap.exists ? snap.data() : { days: {} };
+      if (!mdata.days) mdata.days = {};
+      for (const ds of allDates(Y, M)) {
+        if (!mdata.days[ds]) mdata.days[ds] = defDay(ds);
+      }
+      renderAll();
+    }
+
+    function save() {
+      userMonths().doc(monthKey(Y, M)).set(mdata);
+    }
+
+    function defDay(ds) {
+      const dow = jsDate(ds).getDay();
+      return { worked: dow >= 1 && dow <= 5, isHoliday: false, satAbsent: false, ot: { "1": 0, "1.5": 0, "2": 0, "3": 0 } };
+    }
+
+    function gd(ds) {
+      if (!mdata.days[ds]) mdata.days[ds] = defDay(ds);
+      return mdata.days[ds];
+    }
+
+    // ── DATE HELPERS ───────────────────────────────────────────────────────────
+    const dim = (y, m) => new Date(y, m, 0).getDate();
+    const fd = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const jsDate = ds => { const [y, m, d] = ds.split('-').map(Number); return new Date(y, m - 1, d); };
+    const today = () => fd(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
+
+    function otDates(y, m) {
+      const py = m === 1 ? y - 1 : y, pm = m === 1 ? 12 : m - 1;
+      const res = [];
+      for (let d = 25; d <= dim(py, pm); d++) res.push(fd(py, pm, d));
+      for (let d = 1; d <= 24; d++) res.push(fd(y, m, d));
+      return res;
+    }
+
+    function attDates(y, m) {
+      const res = [];
+      for (let d = 1; d <= dim(y, m); d++) res.push(fd(y, m, d));
+      return res;
+    }
+
+    function allDates(y, m) { return [...new Set([...otDates(y, m), ...attDates(y, m)])]; }
+
+    // ── CALCULATIONS ───────────────────────────────────────────────────────────
+    function calc() {
+      const od = otDates(Y, M), ad = attDates(Y, M);
+      const pfx = `${Y}-${String(M).padStart(2, '0')}-`;
+
+      let otPay = 0;
+      const otR = { "1": 0, "1.5": 0, "2": 0, "3": 0 };
+      for (const ds of od) {
+        const d = gd(ds);
+        for (const r of ["1", "1.5", "2", "3"]) {
+          const h = Number(d.ot[r]) || 0;
+          otR[r] += h; otPay += h * HOURLY * Number(r);
+        }
+      }
+      const otHrs = Object.values(otR).reduce((a, b) => a + b, 0);
+
+      let tDays = 0, absentDays = 0, totalWorkDays = 0;
+      for (const ds of ad) {
+        if (!ds.startsWith(pfx)) continue;
+        const dow = jsDate(ds).getDay();
+        const d = gd(ds);
+        // Weekdays (Mon–Fri): count as workable; absent if not worked and not holiday
+        if (dow >= 1 && dow <= 5 && !d.isHoliday) {
+          totalWorkDays++;
+          if (!d.worked) absentDays++;
+        }
+        // Travel: all worked days (weekdays, Saturdays, holidays)
+        if (d.worked) tDays++;
+      }
+
+      const dailyRate = totalWorkDays > 0 ? BASE / totalWorkDays : 0;
+      const absDeduction = absentDays * dailyRate;
+      const tPay = tDays * TRAVEL;
+      const gross = BASE - absDeduction + tPay + otPay;
+      const net = gross - SSF;
+      return { BASE, absDeduction, absentDays, tPay, tDays, otPay, otR, otHrs, SSF, gross, net };
+    }
+
+    // ── FORMAT ─────────────────────────────────────────────────────────────────
+    const fmt = n => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    // ── RENDER ─────────────────────────────────────────────────────────────────
+    function renderAll() {
+      const py = M === 1 ? Y - 1 : Y, pm = M === 1 ? 12 : M - 1;
+      document.getElementById('mlabel').textContent = `${MONTHS[M - 1]} ${Y}`;
+      document.getElementById('ot-sub').textContent =
+        `${String(pm).padStart(2, '0')}/${py} 25 – ${String(M).padStart(2, '0')}/${Y} 24`;
+      document.getElementById('att-sub').textContent =
+        `${String(M).padStart(2, '0')}/${Y} 1–${dim(Y, M)}`;
+      renderGrid('ot-grid', otDates(Y, M), true);
+      renderGrid('att-grid', attDates(Y, M), false);
+      renderSummary();
+    }
+
+    function bgClass(ds) {
+      const d = gd(ds), dow = jsDate(ds).getDay();
+      if (d.isHoliday) return d.worked ? 'bg-worked' : 'bg-holiday';
+      if (dow === 0) return 'bg-sun';
+      if (dow === 6) {
+        return d.worked ? 'bg-sat-worked' : 'bg-sat';
+      }
+      return d.worked ? 'bg-worked' : 'bg-absent';
+    }
+
+    function renderGrid(id, dates, showOT) {
+      const el = document.getElementById(id);
+      const pfx = `${Y}-${String(M).padStart(2, '0')}-`;
+      const tod = today();
+
+      let html = DOW.map((d, i) =>
+        `<div class="cdow${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}">${d}</div>`).join('');
+
+      const firstDow = jsDate(dates[0]).getDay();
+      for (let i = 0; i < firstDow; i++) html += `<div class="ccell empty"></div>`;
+
+      for (const ds of dates) {
+        const d = gd(ds);
+        const dow = jsDate(ds).getDay();
+        const isPrev = !ds.startsWith(pfx);
+        const isToday = ds === tod;
+        const bg = bgClass(ds);
+        const dayNum = parseInt(ds.split('-')[2]);
+
+        const hasOT = Object.values(d.ot).some(h => Number(h) > 0);
+
+        let otHtml = '';
+        if (showOT) {
+          const lines = [];
+          for (const [r, h] of Object.entries(d.ot)) if (Number(h) > 0) lines.push(`${h}h×${r}`);
+          if (lines.length) otHtml = `<div class="ot-lines">${lines.join(' ')}</div>`;
+        }
+
+        const hasTravelDot = !showOT && dow !== 0 && ds.startsWith(pfx) && d.worked;
+        const tdot = hasTravelDot ? `<div class="travel-dot" title="Travel +฿${TRAVEL}"></div>` : '';
+        const otDot = hasOT
+          ? `<div class="ot-dot" style="${hasTravelDot ? 'bottom:4px' : 'top:4px'}" title="OT recorded"></div>`
+          : '';
+
+        const holBadge = d.isHoliday ? `<div class="hol-badge">Holiday</div>` : '';
+        const mNote = isPrev
+          ? `<div class="dmonth">${MONTHS[parseInt(ds.split('-')[1]) - 1].slice(0, 3)}</div>` : '';
+
+        html += `<div class="ccell ${bg}${isPrev ? ' prev' : ''}${isToday ? ' today' : ''}${hasOT ? ' has-ot' : ''}" onclick="openModal('${ds}')" title="${ds}">
+      <div class="dnum${(!d.worked && dow >= 1 && dow <= 5) ? ' dim' : ''}">${dayNum}</div>
+      ${mNote}${holBadge}${otHtml}${otDot}${tdot}
+    </div>`;
+      }
+      el.innerHTML = html;
+    }
+
+    function renderSummary() {
+      const c = calc();
+      const hrate = `฿${fmt(HOURLY)}/hr`;
+      const labels = { "1": "1× Holiday", "1.5": "1.5× Weekday", "2": "2× Holiday", "3": "3× Holiday" };
+      let otRows = '', anyOT = false;
+      for (const r of ["1.5", "1", "2", "3"]) {
+        if (c.otR[r] > 0) {
+          anyOT = true;
+          const pay = c.otR[r] * HOURLY * Number(r);
+          otRows += `<div class="srow"><span class="sl">${labels[r]} (${c.otR[r]}h)</span>
+        <span class="sv pos">+฿${fmt(pay)}</span></div>`;
+        }
+      }
+
+      document.getElementById('sbody').innerHTML = `
+    <div class="ssect">Income</div>
+    <div class="srow"><span class="sl">Base Salary</span><span class="sv pos">+฿${fmt(c.BASE)}</span></div>
+    <div class="srow"><span class="sl">Travel (${c.tDays}d × ฿${TRAVEL})</span><span class="sv pos">+฿${fmt(c.tPay)}</span></div>
+
+    <div class="ssect">OT Pay${c.otHrs > 0 ? ` — ${c.otHrs}h total` : ''}</div>
+    ${anyOT
+          ? otRows + `<div class="srow" style="font-style:italic"><span class="sl" style="font-size:.72rem">Rate: ${hrate}</span></div>`
+          : `<div class="srow"><span class="sl">No OT recorded</span><span class="sv">฿0.00</span></div>`}
+
+    <div class="ssect">Deductions</div>
+    <div class="srow"><span class="sl">SSF</span><span class="sv neg">−฿${fmt(c.SSF)}</span></div>
+    ${c.absentDays > 0
+          ? `<div class="srow"><span class="sl">Absent (${c.absentDays}d)</span><span class="sv neg">−฿${fmt(c.absDeduction)}</span></div>`
+          : `<div class="srow"><span class="sl">Absent (0d)</span><span class="sv">฿0.00</span></div>`}
+
+    <div class="sgross"><span>Gross</span><span>฿${fmt(c.gross)}</span></div>
+    <div class="snet"><span class="nl">Net Salary</span><span class="nv">฿${fmt(c.net)}</span></div>`;
+    }
+
+    // ── MODAL ──────────────────────────────────────────────────────────────────
+    function openModal(ds) {
+      editDate = ds;
+      const d = gd(ds);
+      const dow = jsDate(ds).getDay();
+      const isSun = dow === 0, isSat = dow === 6, isWkd = !isSun && !isSat;
+      const inOT = otDates(Y, M).includes(ds);
+      const pfx = `${Y}-${String(M).padStart(2, '0')}-`;
+      const isPrev = !ds.startsWith(pfx);
+
+      const dayNum = parseInt(ds.split('-')[2]);
+      const mo = MONTHS[parseInt(ds.split('-')[1]) - 1];
+      document.getElementById('mtitle').textContent = `${DOW[dow]}, ${mo} ${dayNum}`;
+
+      const typeLabel = isSun ? 'Sunday – Rest Day' : isSat ? 'Saturday – Attendance Day' : d.isHoliday ? 'Public Holiday' : 'Regular Workday';
+      const typeCls = isSun ? 'sunday' : isSat ? 'saturday' : d.isHoliday ? 'holiday' : 'weekday';
+
+      let html = `<div class="mtype ${typeCls}">${typeLabel}</div>`;
+
+      if (!isSun) {
+        html += `<div class="trow">
+      <div><div class="tl">🏖️ Public Holiday</div><div class="td">Mark as official holiday – enables 1×/2×/3× OT rates</div></div>
+      <label class="sw"><input type="checkbox" id="chk-hol" ${d.isHoliday ? 'checked' : ''}><span class="sw-sl"></span></label>
+    </div>`;
+      }
+
+      if (!isSun) {
+        html += `<div class="trow" id="wrow">
+      <div><div class="tl">✅ Worked today</div><div class="td">Came to work → +฿${TRAVEL} travel allowance${isWkd ? '; absent deducts daily rate' : ''}</div></div>
+      <label class="sw"><input type="checkbox" id="chk-wrk" ${d.worked ? 'checked' : ''}><span class="sw-sl"></span></label>
+    </div>`;
+      }
+
+      if (inOT && !isSun) {
+        const rinfo = { "1.5": "1.5× Weekday OT", "1": "1× Holiday pay", "2": "2× Holiday OT", "3": "3× Holiday OT" };
+        html += `<div class="otsect"><h4>⏱ OT Hours</h4>`;
+        const order = d.isHoliday ? ["1", "1.5", "2", "3"] : ["1.5", "1", "2", "3"];
+        for (const r of order) {
+          const h = Number(d.ot[r]) || 0, pay = h * HOURLY * Number(r);
+          html += `<div class="otrow">
+        <span class="otlabel">${rinfo[r]}</span>
+        <input type="number" class="otinp" id="ot-${r}" value="${h || ''}" min="0" max="24" step="0.5" placeholder="0" oninput="updOT()">
+        <span class="otunit">h</span>
+        <span class="otprev" id="op-${r}">${h > 0 ? '฿' + fmt(pay) : ''}</span>
+      </div>`;
+        }
+        html += `<div class="ottotal" id="ot-tot"></div></div>`;
+        if (isPrev) html += `<div class="info-box">ℹ️ This day is from the previous calendar month but falls within ${MONTHS[M - 1]} ${Y}'s OT period.</div>`;
+      } else if (isSun) {
+        html += `<div class="info-box">Sundays are rest days — no attendance, no travel, no OT.</div>`;
+      } else if (!inOT) {
+        html += `<div class="info-box">This day is outside the OT period (25th prev – 24th curr). OT for this day belongs to next month's calculation.</div>`;
+      }
+
+      html += `<div class="mactions">
+    <button class="btn btn-c" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-p" onclick="saveDay()">Save</button>
+  </div>`;
+
+      document.getElementById('mcontent').innerHTML = html;
+
+      const chkHol = document.getElementById('chk-hol');
+      if (chkHol) chkHol.addEventListener('change', () => { updOT(); });
+
+      document.getElementById('mbg').classList.add('open');
+      updOT();
+    }
+
+    function updOT() {
+      let total = 0;
+      for (const r of ["1", "1.5", "2", "3"]) {
+        const el = document.getElementById(`ot-${r}`);
+        if (!el) continue;
+        const h = parseFloat(el.value) || 0, pay = h * HOURLY * Number(r);
+        total += pay;
+        const pe = document.getElementById(`op-${r}`);
+        if (pe) pe.textContent = h > 0 ? '฿' + fmt(pay) : '';
+      }
+      const te = document.getElementById('ot-tot');
+      if (te) te.textContent = total > 0 ? `OT subtotal: ฿${fmt(total)}` : '';
+    }
+
+    function saveDay() {
+      if (!editDate) return;
+      const d = gd(editDate);
+      const ch = document.getElementById('chk-hol'); if (ch) d.isHoliday = ch.checked;
+      const cw = document.getElementById('chk-wrk'); if (cw) d.worked = cw.checked;
+      for (const r of ["1", "1.5", "2", "3"]) {
+        const el = document.getElementById(`ot-${r}`);
+        if (el) d.ot[r] = parseFloat(el.value) || 0;
+      }
+      mdata.days[editDate] = d;
+      closeModal(); renderAll(); save();
+    }
+
+    function closeModal() { document.getElementById('mbg').classList.remove('open'); editDate = null; }
+    function bgClick(e) { if (e.target === document.getElementById('mbg')) closeModal(); }
+
+    // ── TABS ───────────────────────────────────────────────────────────────────
+    function switchTab(tab) {
+      ['ot', 'att'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+        document.getElementById(`pane-${t}`).classList.toggle('active', t === tab);
+      });
+    }
+
+    // ── NAVIGATION ─────────────────────────────────────────────────────────────
+    async function changeMonth(d) {
+      M += d;
+      if (M < 1) { M = 12; Y-- }
+      if (M > 12) { M = 1; Y++ }
+      await loadMonth();
+    }
+
+    // ── KEYBOARD ───────────────────────────────────────────────────────────────
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { closeModal(); closeSettings(); }
+    });
+
+    // ── AUTH OBSERVER (entry point) ────────────────────────────────────────────
+    auth.onAuthStateChanged(async user => {
+      if (user) {
+        currentUser = user;
+        showApp();
+        await loadSettings();
+        await loadMonth();
+      } else {
+        currentUser = null;
+        showAuthScreen();
+      }
+    });
+  </script>
+</body>
+
+</html>

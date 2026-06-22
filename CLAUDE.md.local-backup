@@ -1,0 +1,69 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Overview
+
+Single-file Thai Baht salary calculator (`index.html`). No build step, no bundler, no dependencies beyond Firebase CDN scripts. Open the file directly in a browser or serve it with any static file server.
+
+## Development
+
+To run locally:
+```
+npx serve .
+# or
+python -m http.server 8080
+```
+
+There are no tests, no linting config, and no package.json.
+
+## Architecture
+
+Everything lives in `index.html` in three sections:
+
+1. **CSS** (`<style>`) — CSS custom properties for theming (light/dark via `html.dark` class). Two breakpoints: 900px (stack layout) and 600px (mobile).
+
+2. **HTML** — Three layered screens managed by `display`/`hidden` toggling:
+   - `#loading-screen` — shown while Firebase resolves auth state
+   - `#auth-screen` — sign-in / create-account form
+   - `#app` — main calendar + summary UI
+
+3. **JavaScript** (`<script>`) — Vanilla JS, no modules. Key globals:
+   - `BASE`, `TRAVEL`, `SSF`, `HOURLY` — salary parameters (mutable, loaded from Firestore per-user)
+   - `Y`, `M` — current year/month being viewed
+   - `mdata` — in-memory cache of the current month's day data (`{ days: { "YYYY-MM-DD": DayObject } }`)
+
+## Data Model
+
+Firestore structure:
+```
+users/{uid}/
+  settings: { base, travel, ssf }
+  months/{YYYY_MM}/
+    days: {
+      "YYYY-MM-DD": {
+        worked: bool,
+        isHoliday: bool,
+        satAbsent: bool,
+        ot: { "1": hours, "1.5": hours, "2": hours, "3": hours }
+      }
+    }
+```
+
+## Key Business Logic
+
+**Two calendar periods per salary month:**
+- **OT Period** (`otDates`): 25th of previous month → 24th of current month
+- **Attendance Period** (`attDates`): 1st → last day of current month
+
+**Salary calculation (`calc()`):**
+- Base salary minus absent deductions (daily rate = `BASE / totalWorkDays`)
+- Travel allowance: `TRAVEL` per worked weekday (Mon–Fri, non-holiday)
+- OT pay: hours × `HOURLY` × rate multiplier (1×, 1.5×, 2×, 3×)
+- `HOURLY = BASE / 30 / 9`
+- Net = Gross − SSF
+- Saturdays are tracked separately: `satAbsent` flag triggers deduction; worked Saturdays have no travel
+
+## Firebase Config
+
+The Firebase project config is hardcoded at the top of the `<script>` block (project: `salary-32127`). To use a different Firebase project, replace the `firebaseConfig` object and update Firestore security rules accordingly. The app uses Firebase Auth (email/password) and Firestore.

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ดึง attendance → salaryot
 // @namespace    salaryot
-// @version      1.0
+// @version      1.1
 // @description  แปะปุ่มลอยบนหน้า attendance ของ rsquanta เพื่อคัดลอกตาราง #gvAttn ไปวางใน salaryot / Floating button on the rsquanta attendance page that copies the #gvAttn table for pasting into salaryot.
 // @match        https://hr.rsquanta.com/HROldPages/Attn/Modify_Attandence_assistant_min.aspx*
 // @run-at       document-idle
@@ -33,7 +33,20 @@
     t.querySelectorAll('input').forEach(function (el) {
       try { el.setAttribute('value', el.value); } catch (e) {}
     });
-    var html = t.outerHTML, ok = false;
+    var html = t.outerHTML;
+    // ส่งเข้า salaryot ตรง ๆ ผ่านแท็บที่เปิดหน้านี้ (window.opener.postMessage) — ข้ามโดเมนได้
+    // ไม่ติด CORS, ไม่ต้องก็อปวาง. Push straight into the salaryot tab that opened this page.
+    var op = window.opener;
+    if (op && !op.closed) {
+      try {
+        op.postMessage({ salaryotImport: 1, html: html }, '*');
+        try { op.focus(); } catch (e) {}
+        flash('✅ ส่งเข้า salaryot แล้ว — สลับไปดู preview');
+        return;
+      } catch (e) {}
+    }
+    // fallback: คัดลอกลง clipboard เมื่อไม่ได้เปิดหน้านี้จากปุ่มใน salaryot (ไม่มี opener)
+    var ok = false;
     try { // sync path: อยู่ใน click gesture, ใช้ได้บนเว็บ HTTP intranet
       var a = document.createElement('textarea');
       a.value = html; a.style.position = 'fixed'; a.style.opacity = '0';
@@ -42,13 +55,13 @@
       document.body.removeChild(a);
     } catch (e) {}
     if (ok) {
-      flash('✅ คัดลอกแล้ว — ไปที่ salaryot กดวาง (Ctrl+V)');
+      flash('📋 คัดลอกแล้ว (ไม่พบ salaryot ที่เปิดจากปุ่ม) — ไปกด “วางจากบริษัท”');
     } else if (navigator.clipboard) { // enhancement: secure context
       navigator.clipboard.writeText(html).then(
-        function () { flash('✅ คัดลอกแล้ว — ไปที่ salaryot กดวาง'); },
-        function () { alert('คัดลอกไม่สำเร็จ'); });
+        function () { flash('📋 คัดลอกแล้ว — ไปกด “วางจากบริษัท”'); },
+        function () { alert('ส่ง/คัดลอกไม่สำเร็จ'); });
     } else {
-      alert('คัดลอกไม่สำเร็จ');
+      alert('ส่ง/คัดลอกไม่สำเร็จ');
     }
   }
 

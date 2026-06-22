@@ -5,7 +5,11 @@
       "Bash(git commit -m ' *)",
       "Bash(git pull *)",
       "Bash(git push *)",
-      "Bash(git rebase *)"
+      "Bash(git rebase *)",
+      "PowerShell(git push *)",
+      "Bash(node -e ' *)",
+      "Bash(node --check _check.js)",
+      "Bash(node --check /e/salaryot/__appscript.js)"
     ]
   }
 }
