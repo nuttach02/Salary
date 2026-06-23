@@ -38,13 +38,29 @@
 
       let tDays = 0, absentDays = 0, totalWorkDays = 0, totalLateMin = 0;
       let leaveHrs = 0, leaveDays = 0, absentHrs = 0, absentHrsDays = 0;
+      let sickHrs = 0, sickDays = 0, personalHrs = 0, personalDays = 0;
+      let lateAbsentHrs = 0, lateAbsentDays = 0;
       for (const ds of ad) {
         if (!ds.startsWith(pfx)) continue;
         const dow = jsDate(ds).getDay();
         const d = gd(ds);
-        totalLateMin += Number(d.lateMin) || 0;
+        const lm = Number(d.lateMin) || 0;
+        totalLateMin += lm;
+        // Late > 30 min ⇒ ESTIMATED absent hours for HR's disciplinary tally (display/tracking
+        // only — money is the normal per-minute late deduction below, unchanged). Formula mirrors
+        // HR's own rounding exactly (verified against real approved exports): 30-min grace, then
+        // ceil(late/30)×0.5  →  31–60′=1h, 61–90′=1.5h, 91–120′=2h … Only counted when the day is
+        // NOT on leave and HR hasn't already filled in an Absenthrs — so it never double-counts the
+        // approved figure; once HR approves, the same value moves to the recorded `absentHrs` line.
+        if (lm > 30 && leaveHrsOf(d) === 0 && absentHrsOf(d) === 0) {
+          lateAbsentHrs += Math.ceil(lm / 30) * 0.5; lateAbsentDays++;
+        }
         const lh = leaveHrsOf(d);
-        if (lh > 0) { leaveHrs += lh; leaveDays++; }
+        if (lh > 0) {
+          leaveHrs += lh; leaveDays++;
+          if (leaveTypeOf(d) === 'sick') { sickHrs += lh; sickDays++; }
+          else { personalHrs += lh; personalDays++; }
+        }
         const ah = absentHrsOf(d);
         if (ah > 0) { absentHrs += ah; absentHrsDays++; }
         // Weekdays (Mon–Fri): count as workable; absent if not worked, not holiday, and not on leave
@@ -79,7 +95,7 @@
       const lateDeduction = totalLateMin * (BASE / 30 / 9 / 60);
       const otherDeductionsPay = OTHER_DEDUCTIONS.reduce((s, od) => s + (Number(od.amount) || 0), 0);
       const net = gross - SSF - lateDeduction - otherDeductionsPay;
-      return { BASE, absDeduction, absentDays, tPay, tDays, otPay, otR, otHrs, leaveHrs, leaveDays, absentHrs, absentHrsDays, SSF, totalLateMin, lateDeduction, otherIncomePay, otherDeductionsPay, gross, net };
+      return { BASE, absDeduction, absentDays, tPay, tDays, otPay, otR, otHrs, leaveHrs, leaveDays, sickHrs, sickDays, personalHrs, personalDays, absentHrs, absentHrsDays, lateAbsentHrs, lateAbsentDays, SSF, totalLateMin, lateDeduction, otherIncomePay, otherDeductionsPay, gross, net };
     }
 
     // ── FORMAT ─────────────────────────────────────────────────────────────────

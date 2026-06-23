@@ -36,11 +36,17 @@
       if (isWkd) {
         const lh = leaveHrsOf(d);
         const isLeave = lh > 0;
+        const lt = leaveTypeOf(d);
         html += `<div class="trow" id="lrow"${d.isHoliday ? ' style="display:none"' : ''}>
       <div><div class="tl">🏖️ On Leave</div><div class="td">Record paid leave by the hour — full day = 9h, half day = 4h</div></div>
       <label class="sw"><input type="checkbox" id="chk-leave" ${isLeave ? 'checked' : ''}><span class="sw-sl"></span></label>
     </div>
     <div class="leave-detail" id="leave-detail"${(isLeave && !d.isHoliday) ? '' : ' style="display:none"'}>
+      <div class="lt-row">
+        <span class="preset-label">ประเภท:</span>
+        <button class="lt-btn${lt === 'personal' ? ' active' : ''}" data-lt="personal" onclick="setLeaveType('personal');return false">🧳 ลากิจ Personal</button>
+        <button class="lt-btn${lt === 'sick' ? ' active' : ''}" data-lt="sick" onclick="setLeaveType('sick');return false">🤒 ลาป่วย Sick</button>
+      </div>
       <div class="sat-presets">
         <span class="preset-label">⚡ Quick:</span>
         <button class="preset-btn" onclick="leavePreset('half');return false"><span>Half day</span><small>4h</small></button>
@@ -317,6 +323,8 @@
       if (chkLeave) chkLeave.checked = true;
       if (det) det.style.display = '';
       clearAbsentUI(); // leave and absent are mutually exclusive
+      // Ensure a leave type is selected (default sick) when enabling leave.
+      if (!document.querySelector('#leave-detail .lt-btn.active')) setLeaveType('sick');
       if (kind === 'full') {
         if (hoursEl) hoursEl.value = 9;
         if (startEl) startEl.value = '08:00';
@@ -329,6 +337,14 @@
         if (chkWrk) chkWrk.checked = true; // worked the other half
       }
       updLeave();
+    }
+
+    // Select the leave type (sick/personal) in the modal's leave panel — toggles the
+    // active button; saveDay reads the active one. Purely UI state until save.
+    function setLeaveType(t) {
+      document.querySelectorAll('#leave-detail .lt-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.lt === t);
+      });
     }
 
     function updLeave() {
@@ -410,6 +426,10 @@
         if (d.isHoliday) lh = 0; // a holiday can't also be leave
         d.leaveHours = lh;
         d.leave = lh > 0;
+        if (lh > 0) {
+          const ltb = document.querySelector('#leave-detail .lt-btn.active');
+          d.leaveType = (ltb && ltb.dataset.lt === 'personal') ? 'personal' : 'sick';
+        }
         const se = document.getElementById('leave-start-t'); d.leaveStart = (lh > 0 && se) ? se.value : '';
         const ee = document.getElementById('leave-end-t'); d.leaveEnd = (lh > 0 && ee) ? ee.value : '';
       }

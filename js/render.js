@@ -68,7 +68,9 @@
 
         const holBadge = d.isHoliday ? `<div class="hol-badge">Holiday</div>` : '';
         const dLeaveHrs = leaveHrsOf(d);
-        const leaveBadge = (!d.isHoliday && dow >= 1 && dow <= 5 && dLeaveHrs > 0) ? `<div class="leave-badge">Leave ${dLeaveHrs}h</div>` : '';
+        const dLeaveType = leaveTypeOf(d);
+        const leaveBadge = (!d.isHoliday && dow >= 1 && dow <= 5 && dLeaveHrs > 0)
+          ? `<div class="leave-badge${dLeaveType === 'sick' ? ' sick' : ''}" title="${dLeaveType === 'sick' ? 'ลาป่วย Sick' : 'ลากิจ Personal'} ${dLeaveHrs} ชม.">${dLeaveType === 'sick' ? 'ลาป่วย' : 'ลากิจ'} ${dLeaveHrs}h</div>` : '';
         const lateBadge = (Number(d.lateMin) > 0) ? `<div class="late-badge" title="มาสาย ${d.lateMin} นาที">⏰${d.lateMin}m</div>` : '';
         const dAbsentHrs = absentHrsOf(d);
         const absentBadge = (!d.isHoliday && dow >= 1 && dow <= 5 && dAbsentHrs > 0) ? `<div class="absent-badge" title="ขาดงาน ${dAbsentHrs} ชม.">ขาด ${dAbsentHrs}h</div>` : '';
@@ -114,22 +116,30 @@
 
     <div class="ssect">Leave${c.leaveHrs > 0 ? ` — <span id="leave-hrs-badge">${c.leaveHrs}</span>h total` : ''}</div>
     ${c.leaveHrs > 0
-          ? `<div class="srow"><span class="sl">${c.leaveDays} day${c.leaveDays !== 1 ? 's' : ''} on leave</span><span class="sv">${c.leaveHrs}h</span></div>`
+          ? [
+            c.personalHrs > 0 ? `<div class="srow"><span class="sl">🧳 ลากิจ Personal (${c.personalDays}d)</span><span class="sv">${c.personalHrs}h</span></div>` : '',
+            c.sickHrs > 0 ? `<div class="srow"><span class="sl">🤒 ลาป่วย Sick (${c.sickDays}d)</span><span class="sv">${c.sickHrs}h</span></div>` : ''
+          ].join('')
           : `<div class="srow"><span class="sl">No leave taken</span><span class="sv">0h</span></div>`}
 
-    <div class="ssect">ขาดงาน (Absent)${c.absentHrs > 0 ? ` — ${c.absentHrs}h total` : ''}</div>
-    ${c.absentHrs > 0
-          ? `<div class="srow"><span class="sl">${c.absentHrsDays} วันที่ขาด · บันทึกชั่วโมง</span><span class="sv">${c.absentHrs}h</span></div>`
-          : `<div class="srow"><span class="sl">ไม่มีการขาดงาน</span><span class="sv">0h</span></div>`}
+    <div class="ssect">ขาดงาน Absent${(c.absentDays > 0 || (c.absentHrs + c.lateAbsentHrs) > 0)
+          ? ` — ${[c.absentDays > 0 ? `${c.absentDays} วัน` : '', (c.absentHrs + c.lateAbsentHrs) > 0 ? `${c.absentHrs + c.lateAbsentHrs}h` : ''].filter(Boolean).join(' · ')}`
+          : ''}</div>
+    ${(c.absentDays > 0 || c.absentHrs > 0 || c.lateAbsentHrs > 0)
+          ? [
+            c.absentDays > 0 ? `<div class="srow"><span class="sl">Absent (${c.absentDays}d)</span><span class="sv neg">−฿${fmt(c.absDeduction)}</span></div>` : '',
+            c.absentHrs > 0 ? `<div class="srow"><span class="sl" style="font-size:.72rem;color:var(--muted)">HR อนุมัติแล้ว · record (${c.absentHrsDays} วัน)</span><span class="sv">${c.absentHrs}h</span></div>` : '',
+            c.lateAbsentHrs > 0 ? `<div class="srow"><span class="sl" style="font-size:.72rem;color:var(--muted)">จากมาสาย &gt;30น. · ประเมิน (${c.lateAbsentDays} วัน)</span><span class="sv">${c.lateAbsentHrs}h</span></div>` : ''
+          ].join('')
+          : `<div class="srow"><span class="sl">ไม่มีการขาดงาน</span><span class="sv">฿0.00</span></div>`}
+
+    <div class="ssect">มาสาย Late${c.totalLateMin > 0 ? ` — ${c.totalLateMin} นาที` : ''}</div>
+    ${c.totalLateMin > 0
+          ? `<div class="srow"><span class="sl">มาสาย (${c.totalLateMin} นาที)</span><span class="sv neg">−฿${fmt(c.lateDeduction)}</span></div>`
+          : `<div class="srow"><span class="sl">ไม่มีมาสาย</span><span class="sv">฿0.00</span></div>`}
 
     <div class="ssect">Deductions</div>
     <div class="srow"><span class="sl">SSF</span><span class="sv neg">−฿${fmt(c.SSF)}</span></div>
-    ${c.absentDays > 0
-          ? `<div class="srow"><span class="sl">Absent (${c.absentDays}d)</span><span class="sv neg">−฿${fmt(c.absDeduction)}</span></div>`
-          : `<div class="srow"><span class="sl">Absent (0d)</span><span class="sv">฿0.00</span></div>`}
-    ${c.totalLateMin > 0
-          ? `<div class="srow"><span class="sl">มาสาย (รวม ${c.totalLateMin} นาที)</span><span class="sv neg">−฿${fmt(c.lateDeduction)}</span></div>`
-          : `<div class="srow"><span class="sl">มาสาย (0 นาที)</span><span class="sv">฿0.00</span></div>`}
     ${OTHER_DEDUCTIONS.filter(od => od.amount > 0).map(od =>
           `<div class="srow"><span class="sl">${od.name || 'Other Deduction'}</span><span class="sv neg">−฿${fmt(od.amount)}</span></div>`
         ).join('')}

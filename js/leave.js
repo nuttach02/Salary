@@ -9,6 +9,8 @@
       document.getElementById('leave-start').value = fmtD(mon);
       document.getElementById('leave-end').value = fmtD(fri);
       document.getElementById('leave-note').value = '';
+      const ltb = document.getElementById('leave-type-bulk');
+      if (ltb) ltb.value = 'sick';
       document.getElementById('leavebg').classList.add('open');
     }
 
@@ -19,6 +21,8 @@
       const startStr = document.getElementById('leave-start').value;
       const endStr = document.getElementById('leave-end').value;
       const note = document.getElementById('leave-note').value.trim();
+      const ltSel = document.getElementById('leave-type-bulk');
+      const leaveType = (ltSel && ltSel.value === 'personal') ? 'personal' : 'sick';
       if (!startStr || !endStr) { showToast('Please select start and end dates'); return; }
       const start = new Date(startStr + 'T00:00:00');
       const end = new Date(endStr + 'T00:00:00');
@@ -33,6 +37,7 @@
           if (!d.isHoliday) {
             d.leave = true;
             d.leaveHours = 9;
+            d.leaveType = leaveType;
             d.leaveStart = '08:00';
             d.leaveEnd = '18:00';
             d.worked = false;

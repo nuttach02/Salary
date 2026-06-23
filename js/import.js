@@ -7,7 +7,7 @@
     // before the diff/preview and before writing (so they're never touched).
     const IMPORT_CATS = {
       late:    { label: 'Late',     keys: ['lateMin'] },
-      leave:   { label: 'Leave',      keys: ['leaveHours', 'worked'] },
+      leave:   { label: 'Leave',      keys: ['leaveHours', 'worked', 'leaveType'] },
       absent:  { label: 'Absent',     keys: ['absentHours'] },
       ot:      { label: 'OT',      keys: ['ot'] },
       holiday: { label: 'Holiday', keys: ['isHoliday'] },
@@ -82,10 +82,18 @@
         const latmin = latEl ? (parseInt(latEl.textContent.trim(), 10) || 0) : 0;
         const txt = sel => { const e = tr.querySelector(sel); return e ? e.textContent.trim() : ''; };
         const num = sel => { const e = tr.querySelector(sel); return e ? (parseFloat(e.value) || 0) : 0; };
+        // The leave-type (假别) isn't a column — on a leave day the "Y" cell is a link whose
+        // onclick="OpenWindow('…aspx?…')" opens a popup (same pattern as the date cell). Capture
+        // that onclick string (and the enclosing cell's HTML) so leaveTypeFromHr() can try to
+        // read the type code from the link if the system encodes it there.
+        const leaEl = tr.querySelector("[id$='gvlblLeacod']");
+        const leaCell = leaEl ? leaEl.closest('td') : null;
         rows.push({
           ds, latmin,
           absenthrs: parseFloat(txt("[id$='gvlblAbsenthrs']")) || 0, // hours of absence (decimal)
           leacod: txt("[id$='gvlblLeacod']"),                        // Take Leave: 'Y' / 'N'
+          leaOnClick: leaEl ? (leaEl.getAttribute('onclick') || '') : '', // popup link, if any
+          leaCellHtml: leaCell ? leaCell.innerHTML : '',             // fallback: scan whole cell
           holcod: num("[id$='gvhdHolcod']"),                         // 1=workday(white) 2=weekend(pink) 3=public holiday(yellow)
           // OT minutes per rate bucket, from the hidden inputs (visible spans can be blank on
           // recent/pending days). Index 0→1×, 1→1.5×, 2→2×, 3→3×.
@@ -96,6 +104,37 @@
         });
       });
       return rows;
+    }
+
+    // Map an HR leave day to our two buckets: 'sick' (ลาป่วย/病假) or 'personal' (ลากิจ/事假).
+    // The leave-type (假别) is NOT a column in #gvAttn — it lives behind the "Y" cell's popup
+    // link. IF the system encodes the code/label in that link's onclick URL or anywhere in the
+    // cell, we read it here; otherwise we return null and the importer leaves the day's type
+    // untouched (never overwrites a manually-set tag with a guess).
+    //
+    // ⚠️ The exact URL param + numeric code values must be confirmed from one real leave-row
+    // export. Add them to the lists below once known; until then we still catch a CJK/English
+    // label if the link carries one, and fall back to null (omit) otherwise.
+    const LEAVE_CODES_SICK = [];      // e.g. ['1','S'] — fill from a real export
+    const LEAVE_CODES_PERSONAL = [];  // e.g. ['2','P'] — fill from a real export
+    function leaveTypeFromHr(r) {
+      if (r.leacod !== 'Y') return null;
+      const hay = `${r.leaOnClick || ''} ${r.leaCellHtml || ''}`;
+      const H = hay.toUpperCase();
+      // Direct label hit anywhere in the cell/link (Chinese 假别 or English).
+      if (hay.includes('病') || H.includes('SICK')) return 'sick';
+      if (hay.includes('事') || H.includes('PERSONAL')) return 'personal';
+      // Coded hit: scan the OpenWindow('…?a=1&b=2') query values for a known code.
+      const m = hay.match(/OpenWindow\(\s*['"]([^'"]+)['"]/i);
+      if (m) {
+        const q = (m[1].split('?')[1] || '');
+        for (const pair of q.split('&')) {
+          const v = (pair.split('=')[1] || '').trim().toUpperCase();
+          if (LEAVE_CODES_SICK.map(c => c.toUpperCase()).includes(v)) return 'sick';
+          if (LEAVE_CODES_PERSONAL.map(c => c.toUpperCase()).includes(v)) return 'personal';
+        }
+      }
+      return null; // undetectable → omit leaveType from the patch
     }
 
     // Classify one HR day into the fields it should set (a "patch"). Only keys
@@ -145,11 +184,15 @@
         return { kind: 'absent', lateMin: L, leaveHours: 0, absentHours: A, ot, ...wt, ...hol };
       }
       if (leaveY) {
+        // Detected leave type rides along only when confidently read from the export; when
+        // null it's omitted so the import never clobbers a manual/legacy tag (defDay → personal).
+        const lt = leaveTypeFromHr(r);
+        const ltPatch = lt ? { leaveType: lt } : {};
         if (!hasSwipe) {
-          return { kind: 'leave', lateMin: 0, leaveHours: 9, absentHours: 0, worked: false, ot, ...wt, ...hol };
+          return { kind: 'leave', lateMin: 0, leaveHours: 9, absentHours: 0, worked: false, ot, ...wt, ...hol, ...ltPatch };
         }
         const lh = Math.max(0, Math.ceil((L - 30) / 30)) * 0.5;
-        return { kind: 'leave', lateMin: 0, leaveHours: lh, absentHours: 0, worked: true, ot, ...wt, ...hol };
+        return { kind: 'leave', lateMin: 0, leaveHours: lh, absentHours: 0, worked: true, ot, ...wt, ...hol, ...ltPatch };
       }
       // Normal/late day: a swipe-in means they were at work → worked:true. This also
       // restores worked when a day flips from a full-day leave (worked:false) back to a
@@ -166,6 +209,7 @@
       const changes = [];
       if ('lateMin' in patch) { const o = Number(cur.lateMin) || 0; if (o !== patch.lateMin) changes.push({ label: 'สาย(น.)', old: o, new: patch.lateMin }); }
       if ('leaveHours' in patch) { const o = leaveHrsOf(cur); if (o !== patch.leaveHours) changes.push({ label: 'ลา(ชม.)', old: o, new: patch.leaveHours }); }
+      if ('leaveType' in patch) { const o = leaveTypeOf(cur); if (o !== patch.leaveType) changes.push({ label: 'ประเภทลา', old: o === 'sick' ? 'ลาป่วย' : 'ลากิจ', new: patch.leaveType === 'sick' ? 'ลาป่วย' : 'ลากิจ' }); }
       if ('absentHours' in patch) { const o = absentHrsOf(cur); if (o !== patch.absentHours) changes.push({ label: 'ขาด(ชม.)', old: o, new: patch.absentHours }); }
       if ('worked' in patch) { const o = !!cur.worked; if (o !== !!patch.worked) changes.push({ label: 'ทำงาน', old: o ? '✓' : '✗', new: patch.worked ? '✓' : '✗' }); }
       if ('isHoliday' in patch) { const o = !!cur.isHoliday; if (o !== !!patch.isHoliday) changes.push({ label: 'วันหยุด', old: o ? '✓' : '✗', new: patch.isHoliday ? '✓' : '✗' }); }
@@ -191,6 +235,7 @@
         if (patch.leaveHours >= 9) { d.leaveStart = '08:00'; d.leaveEnd = '18:00'; }
         else if (patch.leaveHours === 0) { d.leaveStart = ''; d.leaveEnd = ''; }
       }
+      if ('leaveType' in patch) d.leaveType = patch.leaveType;
       if ('worked' in patch) d.worked = patch.worked;
       if ('isHoliday' in patch) d.isHoliday = patch.isHoliday;
       if ('ot' in patch) d.ot = { "1": patch.ot["1"], "1.5": patch.ot["1.5"], "2": patch.ot["2"], "3": patch.ot["3"] };

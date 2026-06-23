@@ -49,6 +49,9 @@
       --leave-bd: #7152b5;
       --leave-badge-bg: #e0d7ff;
       --leave-badge-tx: #583797;
+      /* Sick leave (amber) — distinct from personal/violet */
+      --leave-sick-bg: #ffe0cc;
+      --leave-sick-tx: #9a4615;
     }
 
     html.dark {
@@ -91,6 +94,8 @@
       --leave-bd: #b7a1f5;
       --leave-badge-bg: #463968;
       --leave-badge-tx: #d1c3ff;
+      --leave-sick-bg: #5a3a26;
+      --leave-sick-tx: #ffd0b0;
     }
 
     /* ── ACCENT PRESETS ──────────────────────────────────────────────────────────
@@ -1958,7 +1963,13 @@
       padding: 1px 4px;
       line-height: 1.4;
       margin-top: 2px;
-      display: inline-block
+      display: inline-block;
+      white-space: nowrap
+    }
+
+    .leave-badge.sick {
+      background: var(--leave-sick-bg);
+      color: var(--leave-sick-tx)
     }
 
     .late-badge {
@@ -2046,6 +2057,42 @@
       background: var(--red-lt);
       border-color: var(--red);
       color: var(--red)
+    }
+
+    /* ── LEAVE TYPE TOGGLE (sick / personal) ─────────────────────────────────── */
+    .lt-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .lt-btn {
+      padding: 4px 9px;
+      border-radius: 6px;
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: .72rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .12s, border-color .12s, color .12s;
+      white-space: nowrap
+    }
+
+    .lt-btn.active {
+      background: var(--leave-badge-bg);
+      border-color: var(--leave-badge-tx);
+      color: var(--leave-badge-tx)
+    }
+
+    .lt-btn[data-lt="sick"].active {
+      background: var(--leave-sick-bg);
+      border-color: var(--leave-sick-tx);
+      color: var(--leave-sick-tx)
     }
 
     /* ── LEAVE DETAIL ────────────────────────────────────────────────────────── */
