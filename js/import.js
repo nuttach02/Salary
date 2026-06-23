@@ -141,8 +141,8 @@
     // present in the patch are applied; absent keys leave the day untouched.
     //  - Absent (Absenthrs>0): record absent hours; deduction follows late-minutes.
     //  - Take Leave = Y, no swipe-in: full-day leave (9h, not worked).
-    //  - Take Leave = Y, with swipe-in: partial leave from a late arrival —
-    //      hours = ceil((Latmin − 30)/30) × 0.5  (08:31→0.5h, 09:01→1h; ≤30→0), still worked.
+    //  - Take Leave = Y, with swipe-in: partial leave from a late arrival — SAME HR rounding as the
+    //      absent estimate: ceil(Latmin/30) × 0.5 with a 30-min grace (08:31→1h, 10:25→2.5h; ≤30→0), still worked.
     //  - Otherwise: a normal day; Latmin drives the existing late deduction.
     function classifyImportRow(r) {
       const L = Number(r.latmin) || 0;
@@ -191,7 +191,7 @@
         if (!hasSwipe) {
           return { kind: 'leave', lateMin: 0, leaveHours: 9, absentHours: 0, worked: false, ot, ...wt, ...hol, ...ltPatch };
         }
-        const lh = Math.max(0, Math.ceil((L - 30) / 30)) * 0.5;
+        const lh = L <= 30 ? 0 : Math.ceil(L / 30) * 0.5;
         return { kind: 'leave', lateMin: 0, leaveHours: lh, absentHours: 0, worked: true, ot, ...wt, ...hol, ...ltPatch };
       }
       // Normal/late day: a swipe-in means they were at work → worked:true. This also
