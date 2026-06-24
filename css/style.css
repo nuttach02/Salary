@@ -1996,6 +1996,14 @@
       white-space: nowrap
     }
 
+    /* Estimated ขาด from lateness (HR not yet approved) — outlined, to read as provisional */
+    .absent-badge.est {
+      background: transparent;
+      color: var(--red);
+      border: 1px dashed var(--red);
+      padding: 0 3px
+    }
+
     /* ── SATURDAY PRESETS ────────────────────────────────────────────────────── */
     .sat-presets {
       display: flex;

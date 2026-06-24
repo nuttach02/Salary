@@ -44,17 +44,11 @@
         if (!ds.startsWith(pfx)) continue;
         const dow = jsDate(ds).getDay();
         const d = gd(ds);
-        const lm = Number(d.lateMin) || 0;
-        totalLateMin += lm;
-        // Late > 30 min ⇒ ESTIMATED absent hours for HR's disciplinary tally (display/tracking
-        // only — money is the normal per-minute late deduction below, unchanged). Formula mirrors
-        // HR's own rounding exactly (verified against real approved exports): 30-min grace, then
-        // ceil(late/30)×0.5  →  31–60′=1h, 61–90′=1.5h, 91–120′=2h … Only counted when the day is
-        // NOT on leave and HR hasn't already filled in an Absenthrs — so it never double-counts the
-        // approved figure; once HR approves, the same value moves to the recorded `absentHrs` line.
-        if (lm > 30 && leaveHrsOf(d) === 0 && absentHrsOf(d) === 0) {
-          lateAbsentHrs += Math.ceil(lm / 30) * 0.5; lateAbsentDays++;
-        }
+        totalLateMin += Number(d.lateMin) || 0;
+        // Estimated absent hours from a late arrival (display/tracking only — money is the
+        // normal per-minute late deduction below). Rule + guards live in lateAbsentHrsOf().
+        const la = lateAbsentHrsOf(d);
+        if (la > 0) { lateAbsentHrs += la; lateAbsentDays++; }
         const lh = leaveHrsOf(d);
         if (lh > 0) {
           leaveHrs += lh; leaveDays++;

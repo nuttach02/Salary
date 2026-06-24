@@ -16,7 +16,9 @@
       "Bash(awk 'NR>=2491 && NR<=4288 {print NR\": \"$0}' index.html)",
       "Bash(grep -vE '^[0-9]+:    \\(function |async function |\\\\}|//|/\\\\*|\\\\*\\)')",
       "Bash(node --check js/auth.js)",
-      "Bash(node --check js/render.js)"
+      "Bash(node --check js/render.js)",
+      "Bash(node --check js/calc.js)",
+      "Bash(node --check js/yearly.js)"
     ]
   }
 }

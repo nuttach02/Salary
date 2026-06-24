@@ -171,3 +171,14 @@
       return Number(d.absentHours) || 0;
     }
 
+    // Estimated absent (ขาด) hours derived from a late arrival, for HR's disciplinary tally.
+    // Mirrors HR's own rounding (verified against real exports): 30-min grace, then
+    // ceil(late/30)×0.5. Counted only when the day isn't on leave and HR hasn't already
+    // approved an Absenthrs — so it never double-counts / overrides the approved figure.
+    // Display/tracking only; lateness is still charged via the normal per-minute deduction.
+    function lateAbsentHrsOf(d) {
+      const lm = Number(d.lateMin) || 0;
+      if (lm <= 30 || leaveHrsOf(d) > 0 || absentHrsOf(d) > 0) return 0;
+      return Math.ceil(lm / 30) * 0.5;
+    }
+

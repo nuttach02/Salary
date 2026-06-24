@@ -74,6 +74,8 @@
         const lateBadge = (Number(d.lateMin) > 0) ? `<div class="late-badge" title="มาสาย ${d.lateMin} นาที">⏰${d.lateMin}m</div>` : '';
         const dAbsentHrs = absentHrsOf(d);
         const absentBadge = (!d.isHoliday && dow >= 1 && dow <= 5 && dAbsentHrs > 0) ? `<div class="absent-badge" title="ขาดงาน ${dAbsentHrs} ชม.">ขาด ${dAbsentHrs}h</div>` : '';
+        const dLateAbsentHrs = lateAbsentHrsOf(d);
+        const lateAbsentBadge = (dLateAbsentHrs > 0) ? `<div class="absent-badge est" title="ประเมินขาดจากมาสาย ${d.lateMin} นาที = ${dLateAbsentHrs} ชม. (HR ยังไม่อนุมัติ)">~ขาด ${dLateAbsentHrs}h</div>` : '';
         const mNote = isPrev
           ? `<div class="dmonth">${MONTHS[parseInt(ds.split('-')[1]) - 1].slice(0, 3)}</div>` : '';
 
@@ -81,7 +83,7 @@
         const isSunAbsent = dow === 0 && d.sunAbsent;
         html += `<div class="ccell ${bg}${isPrev ? ' prev' : ''}${isToday ? ' today' : ''}${hasOT ? ' has-ot' : ''}" onclick="cellClick('${ds}',event)" title="${ds}" style="animation-delay:${cellI * 13}ms">
       <div class="dnum${(!d.worked && !d.isHoliday && dow >= 1 && dow <= 5 || isSatAbsent || isSunAbsent) ? ' dim' : ''}">${dayNum}</div>
-      ${mNote}${holBadge}${leaveBadge}${lateBadge}${absentBadge}${otHtml}${otDot}${tdot}${noteDot}
+      ${mNote}${holBadge}${leaveBadge}${lateBadge}${absentBadge}${lateAbsentBadge}${otHtml}${otDot}${tdot}${noteDot}
     </div>`;
       }
       el.innerHTML = html;
