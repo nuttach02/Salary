@@ -39,7 +39,7 @@
       let tDays = 0, absentDays = 0, totalWorkDays = 0, totalLateMin = 0;
       let leaveHrs = 0, leaveDays = 0, absentHrs = 0, absentHrsDays = 0;
       let sickHrs = 0, sickDays = 0, personalHrs = 0, personalDays = 0;
-      let lateAbsentHrs = 0, lateAbsentDays = 0;
+      let lateAbsentHrs = 0, lateAbsentDays = 0, absentExtraMin = 0, absentExtraDays = 0;
       for (const ds of ad) {
         if (!ds.startsWith(pfx)) continue;
         const dow = jsDate(ds).getDay();
@@ -57,20 +57,27 @@
         }
         const ah = absentHrsOf(d);
         if (ah > 0) { absentHrs += ah; absentHrsDays++; }
+        let dayAbsent = false;
         // Weekdays (Mon–Fri): count as workable; absent if not worked, not holiday, and not on leave
         if (dow >= 1 && dow <= 5 && !d.isHoliday) {
           if (!d.leave) totalWorkDays++;
-          if (!d.worked && !d.leave) absentDays++;
+          if (!d.worked && !d.leave) { absentDays++; dayAbsent = true; }
         }
         // Saturdays: only deduct if explicitly marked as absent (satAbsent flag)
         if (dow === 6 && !d.isHoliday && d.satAbsent) {
           totalWorkDays++;
-          absentDays++;
+          absentDays++; dayAbsent = true;
         }
         // Sundays: only deduct if explicitly marked as absent (sunAbsent flag)
         if (dow === 0 && d.sunAbsent) {
           totalWorkDays++;
-          absentDays++;
+          absentDays++; dayAbsent = true;
+        }
+        // Absent hours on a day not already deducted whole: charge only the part the late
+        // minutes don't cover, since HR's absent hours usually come from that same lateness.
+        if (ah > 0 && !d.isHoliday && !dayAbsent) {
+          const extra = Math.max(0, ah * 60 - (Number(d.lateMin) || 0));
+          if (extra > 0) { absentExtraMin += extra; absentExtraDays++; }
         }
       }
 
@@ -91,9 +98,10 @@
       const otherIncomePay = OTHER_INCOMES.reduce((s, oi) => s + (Number(oi.amount) || 0), 0);
       const gross = BASE - absDeduction + tPay + nightPay + otPay + otherIncomePay;
       const lateDeduction = totalLateMin * (BASE / 30 / 9 / 60);
+      const absentHrsDeduction = absentExtraMin * (BASE / 30 / 9 / 60);
       const otherDeductionsPay = OTHER_DEDUCTIONS.reduce((s, od) => s + (Number(od.amount) || 0), 0);
-      const net = gross - SSF - lateDeduction - otherDeductionsPay;
-      return { BASE, absDeduction, absentDays, tPay, tDays, nightPay, nightDays, otPay, otR, otHrs, leaveHrs, leaveDays, sickHrs, sickDays, personalHrs, personalDays, absentHrs, absentHrsDays, lateAbsentHrs, lateAbsentDays, SSF, totalLateMin, lateDeduction, otherIncomePay, otherDeductionsPay, gross, net };
+      const net = gross - SSF - lateDeduction - absentHrsDeduction - otherDeductionsPay;
+      return { BASE, absDeduction, absentDays, tPay, tDays, nightPay, nightDays, otPay, otR, otHrs, leaveHrs, leaveDays, sickHrs, sickDays, personalHrs, personalDays, absentHrs, absentHrsDays, absentHrsDeduction, absentExtraDays, lateAbsentHrs, lateAbsentDays, SSF, totalLateMin, lateDeduction, otherIncomePay, otherDeductionsPay, gross, net };
     }
 
     // ── FORMAT ─────────────────────────────────────────────────────────────────

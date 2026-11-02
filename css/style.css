@@ -53,6 +53,9 @@
       /* Sick leave (amber) — distinct from personal/violet */
       --leave-sick-bg: #ffe0cc;
       --leave-sick-tx: #9a4615;
+      /* Night shift (indigo) */
+      --night: #3d4f9e;
+      --night-lt: #e7ebfb;
     }
 
     html.dark {
@@ -98,6 +101,8 @@
       --leave-badge-tx: #d1c3ff;
       --leave-sick-bg: #5a3a26;
       --leave-sick-tx: #ffd0b0;
+      --night: #a9b6ff;
+      --night-lt: #232a4d;
     }
 
     /* ── ACCENT PRESETS ──────────────────────────────────────────────────────────
@@ -2270,102 +2275,195 @@
       margin-left: 4px
     }
 
-    .dm-tiles {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px
+    /* Status chips: one tap each, wrapping into a short row instead of a grid of cards.
+       The checkbox inside stays the source of truth; the ring shows its state. */
+    .dm-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px
     }
 
-    .dtile {
-      display: flex;
+    .dchip {
+      --c: var(--green);
+      --c-lt: var(--green-lt);
+      display: inline-flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      min-height: 60px;
-      padding: 9px 11px;
+      gap: 7px;
+      min-height: 40px;
+      padding: 0 13px 0 10px;
       border: 1.5px solid var(--border);
-      border-radius: 10px;
+      border-radius: 999px;
+      background: var(--card);
       cursor: pointer;
-      transition: background .15s, border-color .15s
+      white-space: nowrap;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background .15s, border-color .15s, color .15s
     }
 
-    .dtile:hover {
-      background: var(--surface)
+    .dchip-night { --c: var(--night); --c-lt: var(--night-lt) }
+    .dchip-hol { --c: var(--badge-hol-color); --c-lt: var(--yellow-lt) }
+    .dchip-leave { --c: var(--leave-bd); --c-lt: var(--leave-bg) }
+    .dchip-bad { --c: var(--red); --c-lt: var(--red-lt) }
+
+    .dchip input {
+      -webkit-appearance: none;
+      appearance: none;
+      flex: none;
+      display: grid;
+      place-content: center;
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      border: 1.5px solid var(--border);
+      border-radius: 50%;
+      background: var(--card);
+      cursor: pointer
     }
 
-    .dtile:focus-within {
-      border-color: var(--blue)
+    .dchip input::after {
+      content: "";
+      width: 5px;
+      height: 9px;
+      margin-top: -2px;
+      border: solid var(--card);
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg) scale(0);
+      transition: transform .12s
     }
 
-    .dtile:has(.sw input:checked) {
-      background: var(--green-lt);
-      border-color: var(--green)
-    }
-
-    .dtile-txt {
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-      min-width: 0
-    }
-
-    .dtile .tl {
-      font-size: .84rem;
+    .dchip .tl {
+      font-size: .88rem;
       font-weight: 600;
-      line-height: 1.3;
       color: var(--text)
     }
 
-    .dtile .td {
-      font-size: .7rem;
-      line-height: 1.35;
+    .dchip:hover {
+      background: var(--surface)
+    }
+
+    .dchip:focus-within {
+      outline: 2px solid var(--blue);
+      outline-offset: 1px
+    }
+
+    .dchip:has(input:checked) {
+      background: var(--c-lt);
+      border-color: var(--c)
+    }
+
+    .dchip:has(input:checked) .tl {
+      color: var(--c)
+    }
+
+    .dchip input:checked {
+      background: var(--c);
+      border-color: var(--c)
+    }
+
+    .dchip input:checked::after {
+      transform: rotate(45deg) scale(1)
+    }
+
+    .dm-hint {
+      margin-top: 8px;
+      font-size: .76rem;
+      line-height: 1.45;
       color: var(--gray)
     }
 
-    .dtile .sw {
-      display: block;
-      width: 36px;
-      height: 20px
-    }
-
-    .dtile .sw-sl::before {
-      width: 14px;
-      height: 14px
-    }
-
-    .dtile .sw input:checked~.sw-sl::before {
-      transform: translateX(16px)
-    }
-
-    .dtile>.otinp {
-      flex: 0 0 auto;
-      width: 58px;
-      max-width: 58px
+    .dm-hint:empty {
+      display: none
     }
 
     .dm-status .leave-detail {
-      margin: 8px 0 0
+      margin: 10px 0 0
     }
 
-    .dm-status .leave-detail .sat-presets {
+    .dm-status .leave-detail .lt-row {
       margin-bottom: 8px
+    }
+
+    .dm-hrs {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 5px;
+      margin-bottom: 10px
+    }
+
+    .dm-hrs .preset-btn {
+      min-height: 38px;
+      padding: 4px 2px;
+      white-space: nowrap;
+      font-size: .8rem
+    }
+
+    .dm-hrs .preset-btn.active {
+      background: var(--leave-bd);
+      border-color: var(--leave-bd);
+      color: var(--card)
+    }
+
+    .dm-abs-detail {
+      border-color: var(--red)
+    }
+
+    .dm-abs-detail .dm-hrs .preset-btn.active {
+      background: var(--red);
+      border-color: var(--red);
+      color: var(--card)
+    }
+
+    .dm-late {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-color: var(--red);
+      cursor: text
+    }
+
+    .dm-late span {
+      flex: 1;
+      min-width: 0;
+      font-size: .84rem;
+      font-weight: 600
+    }
+
+    .dm-late small {
+      display: block;
+      font-size: .7rem;
+      font-weight: 500;
+      color: var(--gray)
+    }
+
+    .dm-late .otinp {
+      flex: none;
+      width: 84px;
+      max-width: 84px
     }
 
     .dm-times {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-      gap: 8px;
-      align-items: end
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 8px
+    }
+
+    /* iOS gives a time field its own intrinsic width; without this it overflows its track */
+    .day-modal input[type=time] {
+      -webkit-appearance: none;
+      appearance: none;
+      display: block;
+      min-width: 0
+    }
+
+    .day-modal input[type=time]::-webkit-date-and-time-value {
+      text-align: left
     }
 
     .dm-times .leave-fld .otinp {
       width: 100%;
       max-width: none;
-      min-height: 38px
-    }
-
-    .dm-times .preset-btn {
-      min-height: 38px
+      min-height: 42px
     }
 
     .dm-calc {
@@ -2519,8 +2617,8 @@
       .day-modal,
       .day-modal.dm-narrow {
         width: 100%;
-        max-height: 92vh;
-        max-height: 92dvh;
+        max-height: 90vh;
+        max-height: 90dvh;
         border: none;
         border-radius: 18px 18px 0 0
       }
@@ -2546,6 +2644,25 @@
         grid-template-columns: repeat(4, minmax(0, 1fr))
       }
 
+      .dm-rates {
+        grid-template-columns: repeat(2, minmax(0, 1fr))
+      }
+
+      .dm-body {
+        gap: 18px
+      }
+
+      .dm-status .leave-times {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px
+      }
+
+      .dm-status .leave-times .leave-fld .otinp {
+        width: 100%;
+        max-width: none
+      }
+
       /* 16px keeps iOS from zooming the page when a field takes focus */
       .day-modal input,
       .day-modal textarea {
@@ -2561,14 +2678,10 @@
       }
     }
 
-    /* Two tiles leave too little room for their labels on the smallest phones */
+    /* Five hour buttons are too tight on the smallest phones */
     @media (max-width: 350px) {
-      .dm-tiles {
-        grid-template-columns: minmax(0, 1fr)
-      }
-
-      .dtile {
-        min-height: 50px
+      .dm-hrs {
+        grid-template-columns: repeat(3, minmax(0, 1fr))
       }
     }
 

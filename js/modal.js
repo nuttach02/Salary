@@ -6,6 +6,7 @@
       _editDayOrig = JSON.parse(JSON.stringify(d));
       _editWorkedOrig = d.worked;
       _editHadLeave = leaveHrsOf(d) > 0;
+      _editHadAbsentFull = absentHrsOf(d) >= 9;
       const dow = jsDate(ds).getDay();
       const isSun = dow === 0, isSat = dow === 6, isWkd = !isSun && !isSat;
       const inOT = otDates(Y, M).includes(ds);
@@ -24,35 +25,32 @@
       typeEl.className = `mtype ${typeCls}`;
       document.getElementById('modal').classList.toggle('dm-narrow', !inOT);
 
-      const tile = (inputId, rowId, title, sub, on, hidden) => `<label class="dtile"${rowId ? ` id="${rowId}"` : ''}${hidden ? ' style="display:none"' : ''}>
-      <span class="dtile-txt"><span class="tl">${title}</span><span class="td">${sub}</span></span>
-      <span class="sw"><input type="checkbox" id="${inputId}" ${on ? 'checked' : ''}><span class="sw-sl"></span></span>
+      // Status chips: each wraps its checkbox, so saveDay and the listeners below read the
+      // same ids as before. Rows keep their ids for the holiday toggle.
+      const chip = (inputId, rowId, kind, label, on, hidden) => `<label class="dchip dchip-${kind}"${rowId ? ` id="${rowId}"` : ''}${hidden ? ' style="display:none"' : ''}>
+      <input type="checkbox" id="${inputId}" ${on ? 'checked' : ''}><span class="tl">${label}</span>
     </label>`;
+      // Hour quick-picks shared by the leave and absent panels
+      const hrBtns = (fn, cur) => [[0.5, '½ ชม.'], [1, '1 ชม.'], [2, '2 ชม.'], [4, 'ครึ่งวัน'], [9, 'ทั้งวัน']]
+        .map(([h, l]) => `<button class="preset-btn${cur === h ? ' active' : ''}" data-h="${h}" onclick="${fn}(${h});return false">${l}</button>`).join('');
 
-      // Status tiles sit in one grid; their detail panels follow it, so opening a panel
-      // never leaves a hole between tiles. Rows keep their ids for the holiday toggle.
-      let tiles = tile('chk-wrk', 'wrow', '✅ Worked today', `+฿${TRAVEL} ค่าเดินทาง`, d.worked, d.isHoliday)
-        + tile('chk-night', 'nrow', '🌙 กะกลางคืน', `20:00–06:00 · +฿${NIGHT_ALLOWANCE}`, d.nightShift, false);
-      if (!isSun) tiles += tile('chk-hol', '', '🏖️ Public Holiday', 'ใช้เรท 1× / 2× / 3×', d.isHoliday, false);
+      let tiles = chip('chk-wrk', 'wrow', 'ok', 'มาทำงาน', d.worked, d.isHoliday)
+        + chip('chk-night', 'nrow', 'night', 'กะดึก', d.nightShift, false);
+      if (!isSun) tiles += chip('chk-hol', '', 'hol', 'วันหยุด', d.isHoliday, false);
 
       let details = '';
       if (isWkd) {
         const lh = leaveHrsOf(d);
         const isLeave = lh > 0;
         const lt = leaveTypeOf(d);
-        tiles += tile('chk-leave', 'lrow', '🏖️ On Leave', 'ลารายชั่วโมง ได้เงินเต็ม', isLeave, d.isHoliday);
+        tiles += chip('chk-leave', 'lrow', 'leave', 'ลา', isLeave, d.isHoliday);
         details += `<div class="leave-detail" id="leave-detail"${(isLeave && !d.isHoliday) ? '' : ' style="display:none"'}>
       <div class="lt-row">
         <span class="preset-label">ประเภท:</span>
         <button class="lt-btn${lt === 'personal' ? ' active' : ''}" data-lt="personal" onclick="setLeaveType('personal');return false">🧳 ลากิจ Personal</button>
         <button class="lt-btn${lt === 'sick' ? ' active' : ''}" data-lt="sick" onclick="setLeaveType('sick');return false">🤒 ลาป่วย Sick</button>
       </div>
-      <div class="sat-presets">
-        <span class="preset-label">⚡ Quick:</span>
-        <button class="preset-btn" onclick="leavePreset('half');return false"><span>Half day</span><small>4h</small></button>
-        <button class="preset-btn" onclick="leavePreset('full');return false"><span>Full day</span><small>9h</small></button>
-        <button class="preset-btn preset-clear" onclick="leavePreset('clear');return false">✕ Clear</button>
-      </div>
+      <div class="dm-hrs" id="leave-hrs">${hrBtns('leavePreset', lh)}</div>
       <div class="leave-times">
         <label class="leave-fld">Start<input type="time" class="otinp" id="leave-start-t" value="${d.leaveStart || ''}"></label>
         <label class="leave-fld">End<input type="time" class="otinp" id="leave-end-t" value="${d.leaveEnd || ''}"></label>
@@ -63,35 +61,33 @@
 
         const ah = absentHrsOf(d);
         const isAbsent = ah > 0;
-        tiles += tile('chk-absent', 'abrow', '❌ ขาดงาน', 'บันทึกชั่วโมงขาด', isAbsent, d.isHoliday);
-        details += `<div class="leave-detail" id="absent-detail"${(isAbsent && !d.isHoliday) ? '' : ' style="display:none"'}>
-      <div class="sat-presets">
-        <span class="preset-label">⚡ Quick:</span>
-        <button class="preset-btn" onclick="absentPreset('half');return false"><span>ครึ่งวัน</span><small>4h</small></button>
-        <button class="preset-btn" onclick="absentPreset('full');return false"><span>เต็มวัน</span><small>9h</small></button>
-        <button class="preset-btn preset-clear" onclick="absentPreset('clear');return false">✕ Clear</button>
-      </div>
+        tiles += chip('chk-absent', 'abrow', 'bad', 'ขาดงาน', isAbsent, d.isHoliday);
+        details += `<div class="leave-detail dm-abs-detail" id="absent-detail"${(isAbsent && !d.isHoliday) ? '' : ' style="display:none"'}>
+      <div class="dm-hrs" id="absent-hrs">${hrBtns('absentPreset', ah)}</div>
       <div class="leave-times">
-        <label class="leave-fld">ชั่วโมงขาด<input type="number" class="otinp" id="absent-hours" value="${ah || ''}" min="0" max="9" step="0.5" placeholder="0" oninput="updAbsent()"></label>
+        <label class="leave-fld">ชั่วโมงขาด<input type="number" class="otinp" id="absent-hours" value="${ah || ''}" min="0" max="9" step="0.5" placeholder="0" oninput="updAbsent(true)"></label>
       </div>
       <div class="ottotal" id="absent-tot"></div>
     </div>`;
       }
 
-      if (isSat) tiles += tile('chk-sat-absent', 'sarow', '❌ ขาดงาน', 'หักเงิน 1 วัน', d.satAbsent, d.isHoliday);
-      if (isSun) tiles += tile('chk-sun-absent', '', '❌ ขาดงาน', 'หักเงิน 1 วัน', d.sunAbsent, false);
+      if (isSat) tiles += chip('chk-sat-absent', 'sarow', 'bad', 'ขาดงาน', d.satAbsent, d.isHoliday);
+      if (isSun) tiles += chip('chk-sun-absent', '', 'bad', 'ขาดงาน', d.sunAbsent, false);
 
       if (isWkd || isSat) {
-        tiles += `<label class="dtile" id="laterow"${d.isHoliday ? ' style="display:none"' : ''}>
-      <span class="dtile-txt"><span class="tl">⏰ มาสาย</span><span class="td">นาที · ฿${fmt(BASE / 30 / 9 / 60)}/นาที</span></span>
-      <input type="number" class="otinp" id="late-min" value="${d.lateMin || ''}" min="0" step="1" placeholder="0" inputmode="numeric">
+        const late = Number(d.lateMin) > 0;
+        tiles += chip('chk-late', 'laterow', 'bad', 'มาสาย', late, d.isHoliday);
+        details += `<label class="leave-detail dm-late" id="late-detail"${(late && !d.isHoliday) ? '' : ' style="display:none"'}>
+      <span>มาสายกี่นาที <small>฿${fmt(BASE / 30 / 9 / 60)}/นาที</small></span>
+      <input type="number" class="otinp" id="late-min" value="${d.lateMin || ''}" min="0" step="1" placeholder="0" inputmode="numeric" oninput="updAbsent()">
     </label>`;
       }
 
       let html = `<div class="dm-body">
     <section class="dm-status">
       <h4 class="dm-h">สถานะวันนี้</h4>
-      <div class="dm-tiles">${tiles}</div>
+      <div class="dm-chips">${tiles}</div>
+      <div class="dm-hint" id="dm-hint"></div>
       ${details}
     </section>`;
 
@@ -105,7 +101,6 @@
           html += `<div class="dm-times">
     <label class="leave-fld">เข้า<input type="time" class="otinp" id="wt-in" value="${d.workIn || ''}"></label>
     <label class="leave-fld">ออก<input type="time" class="otinp" id="wt-out" data-otkind="${isRest ? 'sat' : 'wkd'}"${isRest ? ` data-dayname="${isSun ? 'อาทิตย์' : 'เสาร์'}"` : ''} value="${d.workOut || ''}" oninput="otFromTime(true)"></label>
-    <button class="preset-btn" onclick="otFromTime(true);return false">↧ ใส่ OT</button>
   </div>
   <div class="dm-calc" id="wt-calc"></div>
   <div class="dm-presets" id="ot-presets">${otPresetButtons(isRest, !!d.nightShift)}</div>`;
@@ -158,7 +153,18 @@
         if (ad) ad.style.display = (chkHol.checked || !cab || !cab.checked) ? 'none' : '';
         const ltr = document.getElementById('laterow');
         if (ltr) ltr.style.display = chkHol.checked ? 'none' : '';
+        const ltd = document.getElementById('late-detail');
+        const clt = document.getElementById('chk-late');
+        if (ltd) ltd.style.display = (chkHol.checked || !clt || !clt.checked) ? 'none' : '';
         updOT();
+      });
+
+      const chkLate = document.getElementById('chk-late');
+      if (chkLate) chkLate.addEventListener('change', () => {
+        const ltd = document.getElementById('late-detail'), lm = document.getElementById('late-min');
+        if (ltd) ltd.style.display = chkLate.checked ? '' : 'none';
+        if (lm) { if (chkLate.checked) lm.focus(); else lm.value = ''; }
+        updAbsent();
       });
 
       const chkNight = document.getElementById('chk-night');
@@ -177,22 +183,45 @@
         leavePreset(chkLeave.checked ? 'full' : 'clear');
       });
       if (chkWrk) chkWrk.addEventListener('change', () => {
-        // "Worked" cancels a full-day leave (mutually exclusive); partial leave coexists
+        // "Worked" cancels a full-day leave or absence (mutually exclusive); partial ones coexist
         const he = document.getElementById('leave-hours');
         const h = he ? (parseFloat(he.value) || 0) : 0;
         if (chkWrk.checked && h >= 9) leavePreset('clear');
+        const ae = document.getElementById('absent-hours');
+        if (chkWrk.checked && ae && (parseFloat(ae.value) || 0) >= 9) clearAbsentUI();
       });
       const chkAbsent = document.getElementById('chk-absent');
       if (chkAbsent) chkAbsent.addEventListener('change', () => {
         // New absence defaults to a full day; unchecking clears it
         absentPreset(chkAbsent.checked ? 'full' : 'clear');
       });
+      // Listeners on the chips themselves run first; the hint then reads the settled state
+      const statusSec = document.querySelector('.dm-status');
+      if (statusSec) statusSec.addEventListener('change', updStatusHint);
 
       document.getElementById('mbg').classList.add('open');
       updOT();
       updLeave();
       updAbsent();
       otFromTime(false);
+    }
+
+    // One line under the chips saying what today's status does to pay
+    function updStatusHint() {
+      const el = document.getElementById('dm-hint');
+      if (!el) return;
+      const on = id => { const e = document.getElementById(id); return !!(e && e.checked); };
+      const num = id => { const e = document.getElementById(id); return e ? (parseFloat(e.value) || 0) : 0; };
+      const lh = on('chk-leave') ? num('leave-hours') : 0, ah = on('chk-absent') ? num('absent-hours') : 0;
+      const restDay = !!(document.getElementById('chk-sat-absent') || document.getElementById('chk-sun-absent'));
+      const day = `฿${fmt(BASE / 30)}`;
+      el.textContent = on('chk-hol') ? 'วันหยุดนักขัตฤกษ์ — ได้เงินเดือนเต็ม ทำงานใช้เรท 1× / 2× / 3×'
+        : (on('chk-sat-absent') || on('chk-sun-absent') || ah >= 9) ? `ขาดทั้งวัน — หัก 1 วัน ${day} ไม่มีค่าเดินทาง`
+        : lh >= 9 ? 'ลาทั้งวัน — ไม่หักเงิน ไม่มีค่าเดินทาง'
+        : on('chk-wrk') ? `มาทำงาน — ได้ค่าเดินทาง ฿${TRAVEL}${on('chk-night') ? ` + ค่ากะดึก ฿${NIGHT_ALLOWANCE}` : ''}${lh > 0 ? ` · ลา ${lh} ชม. ไม่หักเงิน` : ''}${ah > 0 ? ` · ขาด ${ah} ชม.` : ''}`
+        : lh > 0 ? `ลา ${lh} ชม. — ไม่หักเงิน`
+        : restDay ? 'วันหยุดประจำสัปดาห์ — กด "มาทำงาน" ถ้าเข้ามาทำ'
+        : `ไม่ได้มาทำงาน — หัก 1 วัน ${day}`;
     }
 
     // Quick-fill buttons: OT hours labelled with the clock-out that earns them on this shift.
@@ -329,8 +358,10 @@
       }
     }
 
-    // Quick-fill leave: 'full' (9h, day off), 'half' (4h, still worked), 'clear' (none)
+    // Quick-fill leave: hours (9 = day off, less = still worked), 'full'/'half' (9/4), 'clear' (none)
     function leavePreset(kind) {
+      if (kind === 'full') kind = 9;
+      if (kind === 'half') kind = 4;
       const det = document.getElementById('leave-detail');
       const chkLeave = document.getElementById('chk-leave');
       const chkWrk = document.getElementById('chk-wrk');
@@ -354,17 +385,13 @@
       clearAbsentUI(); // leave and absent are mutually exclusive
       // Ensure a leave type is selected (default sick) when enabling leave.
       if (!document.querySelector('#leave-detail .lt-btn.active')) setLeaveType('sick');
-      if (kind === 'full') {
-        if (hoursEl) hoursEl.value = 9;
-        if (startEl) startEl.value = '08:00';
-        if (endEl) endEl.value = '18:00';
-        if (chkWrk) chkWrk.checked = false; // full day off
-      } else if (kind === 'half') {
-        if (hoursEl) hoursEl.value = 4;
-        if (startEl) startEl.value = '08:00';
-        if (endEl) endEl.value = '12:00';
-        if (chkWrk) chkWrk.checked = true; // worked the other half
-      }
+      // From 08:00, skipping the 12:00–13:00 lunch hour; a full day runs to 18:00
+      const h = Number(kind) || 0;
+      const endMin = 8 * 60 + h * 60 + (h > 4 ? 60 : 0);
+      if (hoursEl) hoursEl.value = h;
+      if (startEl) startEl.value = '08:00';
+      if (endEl) endEl.value = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+      if (chkWrk) chkWrk.checked = h < 9; // a full day off isn't worked; a partial one is
       updLeave();
     }
 
@@ -389,6 +416,8 @@
       if (tot) tot.textContent = h > 0
         ? `Leave: ${h}h — ${h >= 9 ? 'full day, not counted as worked' : 'partial, still counts as worked'}`
         : '';
+      document.querySelectorAll('#leave-hrs [data-h]').forEach(b => b.classList.toggle('active', Number(b.dataset.h) === h));
+      updStatusHint();
     }
 
     // Clear the leave / absent sub-panels (used for mutual exclusivity). These only
@@ -411,35 +440,55 @@
       updAbsent();
     }
 
-    // Quick-fill absent hours: 'full' (9h), 'half' (4h), 'clear' (none). Absent hours
-    // are a record only — they do not change the Worked flag or add a deduction here.
+    // Quick-fill absent hours: hours (9 = whole day, not worked; less = still worked),
+    // 'full'/'half' (9/4), 'clear' (none). calc() deducts a whole day through worked:false,
+    // and a part day by the hours the late minutes don't already cover.
     function absentPreset(kind) {
+      if (kind === 'full') kind = 9;
+      if (kind === 'half') kind = 4;
       const det = document.getElementById('absent-detail');
       const chkAbsent = document.getElementById('chk-absent');
+      const chkWrk = document.getElementById('chk-wrk');
       const hoursEl = document.getElementById('absent-hours');
       if (kind === 'clear') {
         if (hoursEl) hoursEl.value = '';
         if (chkAbsent) chkAbsent.checked = false;
         if (det) det.style.display = 'none';
+        // A cleared whole-day absence becomes a normal worked day again
+        if (chkWrk) chkWrk.checked = _editHadAbsentFull ? true : _editWorkedOrig;
         updAbsent();
         return;
       }
       if (chkAbsent) chkAbsent.checked = true;
       if (det) det.style.display = '';
       clearLeaveUI(); // absent and leave are mutually exclusive
-      if (hoursEl) hoursEl.value = (kind === 'half') ? 4 : 9;
+      const h = Number(kind) || 0;
+      if (hoursEl) hoursEl.value = h;
+      if (chkWrk) chkWrk.checked = h < 9;
       updAbsent();
     }
 
-    function updAbsent() {
+    // typed=true when the hours field itself changed: only then does it move Worked, so opening
+    // an older day never flips a flag the user set.
+    function updAbsent(typed) {
       const hoursEl = document.getElementById('absent-hours');
-      if (!hoursEl) return;
-      let h = parseFloat(hoursEl.value);
-      if (isNaN(h)) h = 0;
-      if (h > 9) { h = 9; hoursEl.value = 9; }
-      if (h < 0) { h = 0; hoursEl.value = ''; }
-      const tot = document.getElementById('absent-tot');
-      if (tot) tot.textContent = h > 0 ? `ขาดงาน: ${h} ชม. (บันทึก — หักเงินอิงนาทีสาย)` : '';
+      if (hoursEl) {
+        let h = parseFloat(hoursEl.value);
+        if (isNaN(h)) h = 0;
+        if (h > 9) { h = 9; hoursEl.value = 9; }
+        if (h < 0) { h = 0; hoursEl.value = ''; }
+        const chkWrk = document.getElementById('chk-wrk');
+        if (typed && chkWrk && h > 0) chkWrk.checked = h < 9; // a whole day absent isn't worked; a part day is
+        const lateEl = document.getElementById('late-min');
+        const late = lateEl ? (parseFloat(lateEl.value) || 0) : 0;
+        const extra = Math.max(0, h * 60 - late) * (BASE / 30 / 9 / 60);
+        const tot = document.getElementById('absent-tot');
+        if (tot) tot.textContent = h >= 9 ? `ขาดทั้งวัน — หัก 1 วัน ฿${fmt(BASE / 30)}`
+          : h > 0 ? `ขาด ${h} ชม. — หัก ฿${fmt(extra)}${late > 0 ? ` (หักเฉพาะส่วนที่เกินมาสาย ${late} นาที)` : ''}`
+          : '';
+        document.querySelectorAll('#absent-hrs [data-h]').forEach(b => b.classList.toggle('active', Number(b.dataset.h) === h));
+      }
+      updStatusHint();
     }
 
     function saveDay() {
@@ -463,7 +512,7 @@
         const se = document.getElementById('leave-start-t'); d.leaveStart = (lh > 0 && se) ? se.value : '';
         const ee = document.getElementById('leave-end-t'); d.leaveEnd = (lh > 0 && ee) ? ee.value : '';
       }
-      // Absent hours (weekday only): a recorded figure, no deduction taken from it here.
+      // Absent hours (weekday only): a whole day is worked:false below; calc() deducts a part day.
       const ahEl = document.getElementById('absent-hours');
       if (ahEl) {
         let ah = parseFloat(ahEl.value) || 0;
@@ -472,7 +521,7 @@
         if (d.isHoliday) ah = 0;
         d.absentHours = ah;
       }
-      const cw = document.getElementById('chk-wrk'); if (cw) d.worked = (Number(d.leaveHours) >= 9) ? false : cw.checked;
+      const cw = document.getElementById('chk-wrk'); if (cw) d.worked = (Number(d.leaveHours) >= 9 || Number(d.absentHours) >= 9) ? false : cw.checked;
       const csa = document.getElementById('chk-sat-absent'); if (csa) d.satAbsent = csa.checked;
       const csu = document.getElementById('chk-sun-absent'); if (csu) d.sunAbsent = csu.checked;
       const lm = document.getElementById('late-min'); if (lm) d.lateMin = parseFloat(lm.value) || 0;

@@ -135,7 +135,7 @@
     ${(c.absentDays > 0 || c.absentHrs > 0 || c.lateAbsentHrs > 0)
           ? [
             c.absentDays > 0 ? `<div class="srow"><span class="sl">Absent (${c.absentDays}d)</span><span class="sv neg">−฿${fmt(c.absDeduction)}</span></div>` : '',
-            c.absentHrs > 0 ? `<div class="srow"><span class="sl" style="font-size:.72rem;color:var(--muted)">HR อนุมัติแล้ว · record (${c.absentHrsDays} วัน)</span><span class="sv">${c.absentHrs}h</span></div>` : '',
+            c.absentHrs > 0 ? `<div class="srow"><span class="sl" style="font-size:.72rem;color:var(--muted)">ขาดเป็นชั่วโมง ${c.absentHrs}h (${c.absentHrsDays} วัน) · หักส่วนที่เกินนาทีสาย</span><span class="sv${c.absentHrsDeduction > 0 ? ' neg' : ''}">${c.absentHrsDeduction > 0 ? `−฿${fmt(c.absentHrsDeduction)}` : 'รวมในมาสาย'}</span></div>` : '',
             c.lateAbsentHrs > 0 ? `<div class="srow"><span class="sl" style="font-size:.72rem;color:var(--muted)">จากมาสาย &gt;30น. · ประเมิน (${c.lateAbsentDays} วัน)</span><span class="sv">${c.lateAbsentHrs}h</span></div>` : ''
           ].join('')
           : `<div class="srow"><span class="sl">ไม่มีการขาดงาน</span><span class="sv">฿0.00</span></div>`}

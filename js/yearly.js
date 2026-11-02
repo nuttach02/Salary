@@ -57,7 +57,7 @@
 
     // Sum recorded months into yearly totals (pure — unit-testable).
     function sumYear(results) {
-      const t = { otHrs: 0, otPay: 0, leaveHrs: 0, leaveDays: 0, sickHrs: 0, sickDays: 0, personalHrs: 0, personalDays: 0, absentDays: 0, absDeduction: 0, absentHrs: 0, absentHrsDays: 0, lateAbsentHrs: 0, lateAbsentDays: 0, totalLateMin: 0, lateDeduction: 0, tDays: 0, tPay: 0, net: 0, gross: 0, months: 0 };
+      const t = { otHrs: 0, otPay: 0, leaveHrs: 0, leaveDays: 0, sickHrs: 0, sickDays: 0, personalHrs: 0, personalDays: 0, absentDays: 0, absDeduction: 0, absentHrs: 0, absentHrsDays: 0, absentHrsDeduction: 0, lateAbsentHrs: 0, lateAbsentDays: 0, totalLateMin: 0, lateDeduction: 0, tDays: 0, tPay: 0, net: 0, gross: 0, months: 0 };
       for (const r of results) {
         if (!r.populated || !r.c) continue;
         const c = r.c;
@@ -66,7 +66,7 @@
         t.sickHrs += c.sickHrs; t.sickDays += c.sickDays;
         t.personalHrs += c.personalHrs; t.personalDays += c.personalDays;
         t.absentDays += c.absentDays; t.absDeduction += c.absDeduction;
-        t.absentHrs += c.absentHrs; t.absentHrsDays += c.absentHrsDays;
+        t.absentHrs += c.absentHrs; t.absentHrsDays += c.absentHrsDays; t.absentHrsDeduction += c.absentHrsDeduction || 0;
         t.lateAbsentHrs += c.lateAbsentHrs; t.lateAbsentDays += c.lateAbsentDays;
         t.totalLateMin += c.totalLateMin; t.lateDeduction += c.lateDeduction;
         t.tDays += c.tDays; t.tPay += c.tPay;
@@ -100,7 +100,7 @@
       const cards = `<div class="yr-cards">
       <div class="yr-card accent"><div class="yc-label">⏱ Total OT Hours</div><div class="yc-val">${fmtHrs(t.otHrs)}<span style="font-size:1rem"> h</span></div><div class="yc-sub">฿${fmt(t.otPay)} OT pay</div></div>
       <div class="yr-card leave"><div class="yc-label">🏖️ Total Leave Hours</div><div class="yc-val">${fmtHrs(t.leaveHrs)}<span style="font-size:1rem"> h</span></div><div class="yc-sub">🧳 ${fmtHrs(t.personalHrs)}h ลากิจ · 🤒 ${fmtHrs(t.sickHrs)}h ลาป่วย</div></div>
-      <div class="yr-card"><div class="yc-label">❌ Absent Days</div><div class="yc-val">${fmtHrs(t.absentDays)}</div><div class="yc-sub">−฿${fmt(t.absDeduction)}${t.absentHrs > 0 ? ` · ${fmtHrs(t.absentHrs)}h record` : ''}${t.lateAbsentHrs > 0 ? ` · ${fmtHrs(t.lateAbsentHrs)}h สาย→ขาด` : ''}</div></div>
+      <div class="yr-card"><div class="yc-label">❌ Absent Days</div><div class="yc-val">${fmtHrs(t.absentDays)}</div><div class="yc-sub">−฿${fmt(t.absDeduction + t.absentHrsDeduction)}${t.absentHrs > 0 ? ` · ${fmtHrs(t.absentHrs)}h ขาดรายชั่วโมง` : ''}${t.lateAbsentHrs > 0 ? ` · ${fmtHrs(t.lateAbsentHrs)}h สาย→ขาด` : ''}</div></div>
       <div class="yr-card"><div class="yc-label">⏰ Late Minutes</div><div class="yc-val">${t.totalLateMin}</div><div class="yc-sub">−฿${fmt(t.lateDeduction)}</div></div>
       <div class="yr-card"><div class="yc-label">🚐 Travel Days</div><div class="yc-val">${t.tDays}</div><div class="yc-sub">฿${fmt(t.tPay)}</div></div>
       <div class="yr-card"><div class="yc-label">💰 Annual Net</div><div class="yc-val" style="font-size:1.3rem">฿${fmt(t.net)}</div><div class="yc-sub">${plural(t.months, 'month')} recorded</div></div>
