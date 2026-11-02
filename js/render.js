@@ -135,7 +135,7 @@
     ${(c.absentDays > 0 || c.absentHrs > 0 || c.lateAbsentHrs > 0)
           ? [
             c.absentDays > 0 ? `<div class="srow"><span class="sl">Absent (${c.absentDays}d)</span><span class="sv neg">−฿${fmt(c.absDeduction)}</span></div>` : '',
-            c.absentHrs > 0 ? `<div class="srow"><span class="sl" style="font-size:.72rem;color:var(--muted)">ขาดเป็นชั่วโมง ${c.absentHrs}h (${c.absentHrsDays} วัน) · หักส่วนที่เกินนาทีสาย</span><span class="sv${c.absentHrsDeduction > 0 ? ' neg' : ''}">${c.absentHrsDeduction > 0 ? `−฿${fmt(c.absentHrsDeduction)}` : 'รวมในมาสาย'}</span></div>` : '',
+            c.absentHrs > 0 ? `<div class="srow"><span class="sl" style="font-size:.72rem;color:var(--muted)">ขาด ${c.absentHrs}h (${c.absentHrsDays} วัน) · ส่วนที่เกินนาทีสาย</span><span class="sv${c.absentHrsDeduction > 0 ? ' neg' : ''}">${c.absentHrsDeduction > 0 ? `−฿${fmt(c.absentHrsDeduction)}` : 'รวมในมาสาย'}</span></div>` : '',
             c.lateAbsentHrs > 0 ? `<div class="srow"><span class="sl" style="font-size:.72rem;color:var(--muted)">จากมาสาย &gt;30น. · ประเมิน (${c.lateAbsentDays} วัน)</span><span class="sv">${c.lateAbsentHrs}h</span></div>` : ''
           ].join('')
           : `<div class="srow"><span class="sl">ไม่มีการขาดงาน</span><span class="sv">฿0.00</span></div>`}
@@ -155,6 +155,8 @@
     <div class="snet"><span class="nl">Net Salary</span><span class="nv">฿${fmt(c.net)}</span></div>`;
 
       // Animate net salary count-up when value changes
+      const hdrNet = document.getElementById('hdr-net');
+      if (hdrNet) hdrNet.textContent = '฿' + fmt(c.net);
       const netEl = document.querySelector('.snet .nv');
       if (netEl && _prevNet !== null && _prevNet !== c.net)
         countUpEl(netEl, _prevNet, c.net, 700, n => '฿' + fmt(n));

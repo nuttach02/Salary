@@ -82,13 +82,21 @@
         </div>
       </div>
       <span class="hdr-note" id="hdr-note">Base ฿23,000 · SSF ฿875 · Travel ฿35/day</span>
-      <button class="theme-btn" onclick="openYearView()" title="Yearly summary">📈</button>
-      <button class="theme-btn" onclick="openSettings()" title="Edit salary settings">⚙️</button>
-      <button class="theme-btn" id="theme-btn" onclick="toggleDark()" title="Toggle dark mode">🌙</button>
+      <div class="hdr-tools">
+        <button class="theme-btn" onclick="openYearView()" title="Yearly summary">📈</button>
+        <button class="theme-btn" onclick="openSettings()" title="Edit salary settings">⚙️</button>
+        <button class="theme-btn" id="theme-btn" onclick="toggleDark()" title="Toggle dark mode">🌙</button>
+      </div>
       <div class="user-chip">
         <span class="uname" id="uname">—</span>
         <button class="usign" onclick="logout()">Sign out</button>
       </div>
+      <!-- Phone only: the net pay up top, since the summary sits below the calendar -->
+      <button class="hdr-net" onclick="document.querySelector('.sum-panel').scrollIntoView({behavior:'smooth'})">
+        <span class="hn-l">เงินเดือนสุทธิ</span>
+        <span class="hn-v" id="hdr-net">—</span>
+        <span class="hn-go">ดูสรุป ↓</span>
+      </button>
     </header>
 
     <div class="body">
