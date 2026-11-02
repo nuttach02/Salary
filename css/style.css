@@ -27,6 +27,7 @@
       /* Neutrals — tinted toward the teal primary, not pure gray */
       --gray: #4b5961;
       --border: #d3dde0;
+      --scrollbar: #b4c0c5;
       --bg: #f3f8fa;
       --card: #ffffff;
       --text: #1e2930;
@@ -74,6 +75,7 @@
       --ot-glow: rgba(244, 151, 82, .55);
       --gray: #9aa7ae;
       --border: #31383c;
+      --scrollbar: #4a5358;
       --bg: #0b1115;
       --card: #161d21;
       --text: #dde6eb;
@@ -121,6 +123,12 @@
 
     :root[data-accent="sunset"]    { --blue:#d05a1e; --blue-lt:#ffece0; --on-accent:#ffffff; --grad-1:#d05a1e; --grad-2:#9c3f12; }
     html.dark[data-accent="sunset"]{ --blue:#f0904f; --blue-lt:#3a1d0e; --on-accent:#1f0c04; --grad-1:#6e3a1c; --grad-2:#4a2510; }
+
+    /* Thin, theme-coloured scrollbars instead of the browser's white default */
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--scrollbar) transparent
+    }
 
     /* Accent picker swatches in the Settings modal */
     .acc-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 0 }
