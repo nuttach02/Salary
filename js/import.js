@@ -23,10 +23,14 @@
         if (!importCats[cat]) continue;
         IMPORT_CATS[cat].keys.forEach(k => { if (k in patch) out[k] = patch[k]; });
       }
-      // A full-day absence's worked:false belongs to the Absent category, not Leave.
+      // A full-day absence's worked:false belongs to the Absent category, not Leave. Its
+      // lateMin:0 only holds alongside it; without it the day falls back to HR's Latmin.
       if (patch.kind === 'absent' && 'worked' in patch) {
         if (importCats.absent) out.worked = patch.worked;
-        else delete out.worked;
+        else {
+          delete out.worked;
+          if ('lateMin' in out) out.lateMin = patch.rawLateMin;
+        }
       }
       return out;
     }
@@ -186,7 +190,7 @@
       }
       if (A > 0) {
         const fullDay = A >= 9 && !hasSwipe;
-        return { kind: 'absent', lateMin: fullDay ? 0 : L, leaveHours: 0, absentHours: A, ...(fullDay ? { worked: false } : {}), ot, ...wt, ...hol };
+        return { kind: 'absent', lateMin: fullDay ? 0 : L, leaveHours: 0, absentHours: A, ...(fullDay ? { worked: false, rawLateMin: L } : {}), ot, ...wt, ...hol };
       }
       if (leaveY) {
         // Detected leave type rides along only when confidently read from the export; when
@@ -466,7 +470,7 @@
     // there rather than a default-worked day, so the next month's travel stays right.
     async function writeDayPatch(key, dayMap, curKey) {
       if (key === curKey) {
-        // current month: update in-memory; the caller persists it via save()
+        // current month: update in-memory; the caller persists it
         for (const ds in dayMap) {
           if (!mdata.days[ds]) mdata.days[ds] = defDay(ds);
           applyPatchToDay(mdata.days[ds], dayMap[ds]);
