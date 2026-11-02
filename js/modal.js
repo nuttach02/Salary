@@ -1,7 +1,9 @@
     // ── MODAL ──────────────────────────────────────────────────────────────────
     function openModal(ds) {
+      if (!monthReady()) { showToast('กำลังโหลดเดือน… ลองใหม่อีกครั้ง'); return; }
       editDate = ds;
       const d = gd(ds);
+      _editDayOrig = JSON.parse(JSON.stringify(d));
       _editWorkedOrig = d.worked;
       _editHadLeave = leaveHrsOf(d) > 0;
       const dow = jsDate(ds).getDay();
@@ -263,6 +265,14 @@
       return Math.floor((out - base) / 30) * 0.5;
     }
 
+    // A Saturday clock-out from 18:00 counts as a full day (9h at 1×). Earlier clock-outs
+    // get no estimate — the OT stays whatever was typed until HR approves. Shared with
+    // classifyImportRow so both entry paths agree.
+    function isFullSaturdayOut(outStr) {
+      const m = String(outStr || '').match(/^(\d{1,2}):(\d{2})$/);
+      return !!m && (+m[1]) * 60 + (+m[2]) >= 18 * 60;
+    }
+
     // apply=true (on time-input): fill the OT fields from the clock-out estimate.
     // apply=false (on modal open): only refresh the readout — never overwrite an OT
     // value that may have come from an HR import.
@@ -277,15 +287,27 @@
       const h = otHoursFromClockOut(outV); // hours past 18:30
       const kind = outEl.dataset.otkind || 'wkd';
       if (kind === 'sat') {
-        // Working a Saturday at all = full standard day (9h) at 1×, plus overflow at 3×.
+        // Full Saturday = 9h at 1× plus overflow at 3×; an earlier clock-out only clears
+        // what this field itself filled in (e.g. while correcting a typo), never typed OT.
+        const full = isFullSaturdayOut(outV);
         if (apply) {
           const f1 = document.getElementById('ot-1');
           const f3 = document.getElementById('ot-3');
-          if (f1) f1.value = 9;
-          if (f3) f3.value = h > 0 ? h : '';
-          updOT();
+          if (full) {
+            if (f1) f1.value = 9;
+            if (f3) f3.value = h > 0 ? h : '';
+            outEl.dataset.autofilled = '1';
+            updOT();
+          } else if (outEl.dataset.autofilled) {
+            if (f1) f1.value = '';
+            if (f3) f3.value = '';
+            delete outEl.dataset.autofilled;
+            updOT();
+          }
         }
-        if (calcEl) calcEl.textContent = h > 0
+        if (calcEl) calcEl.textContent = !full
+          ? `ออกก่อน 18:00 — ไม่ประมาณ OT กรอกเองหรือรอ HR อนุมัติ`
+          : h > 0
           ? `≈ 9 ชม. (1×) + OT ${h} ชม. (3×) — ถือว่าทำเต็มวันเสาร์ ประมาณการก่อน HR อนุมัติ`
           : `≈ 9 ชม. (1×) ทำงานวันเสาร์ — ประมาณการก่อน HR อนุมัติ`;
       } else {
@@ -456,7 +478,21 @@
       const noteEl = document.getElementById('day-note');
       if (noteEl) d.note = noteEl.value.trim();
       mdata.days[editDate] = d;
-      closeModal(); renderAll(); save();
+      const otherWrites = mirrorDayEdit(editDate, _editDayOrig, d);
+      closeModal(); renderAll(); save('Saved ✓', otherWrites);
+    }
+
+    // A day on the 25th+ lives in two month docs. Copy the fields this edit changed to the
+    // other doc so its money follows; untouched fields stay, so a copy that already
+    // diverged (e.g. OT held only in the next month) is never overwritten.
+    function mirrorDayEdit(ds, before, after) {
+      const patch = {};
+      for (const k of Object.keys(after)) {
+        if (JSON.stringify(before[k]) !== JSON.stringify(after[k])) patch[k] = after[k];
+      }
+      if (!Object.keys(patch).length) return [];
+      const curKey = monthKey(Y, M);
+      return importTargetKeys(ds).filter(key => key !== curKey).map(key => writeDayPatch(key, { [ds]: patch }, curKey));
     }
 
     function closeModal() { document.getElementById('mbg').classList.remove('open'); editDate = null; }

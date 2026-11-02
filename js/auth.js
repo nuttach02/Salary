@@ -96,6 +96,10 @@
       document.getElementById('auth-screen').classList.remove('hidden');
       document.getElementById('year-screen').style.display = 'none';
       document.getElementById('app').style.display = 'none';
+      // Sign-in leaves these disabled; the password must not outlive the session.
+      document.getElementById('auth-btn').disabled = false;
+      document.getElementById('google-btn').disabled = false;
+      document.getElementById('auth-pass').value = '';
     }
 
     async function logout() {

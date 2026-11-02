@@ -23,6 +23,11 @@
         if (!importCats[cat]) continue;
         IMPORT_CATS[cat].keys.forEach(k => { if (k in patch) out[k] = patch[k]; });
       }
+      // A full-day absence's worked:false belongs to the Absent category, not Leave.
+      if (patch.kind === 'absent' && 'worked' in patch) {
+        if (importCats.absent) out.worked = patch.worked;
+        else delete out.worked;
+      }
       return out;
     }
 
@@ -140,6 +145,8 @@
     // Classify one HR day into the fields it should set (a "patch"). Only keys
     // present in the patch are applied; absent keys leave the day untouched.
     //  - Absent (Absenthrs>0): record absent hours; deduction follows late-minutes.
+    //      A full day (≥9h, no swipe) is worked:false instead — one daily-rate deduction, no
+    //      travel — with lateMin 0 so it isn't deducted twice.
     //  - Take Leave = Y, no swipe-in: full-day leave (9h, not worked).
     //  - Take Leave = Y, with swipe-in: partial leave from a late arrival — SAME HR rounding as the
     //      absent estimate: ceil(Latmin/30) × 0.5 with a 30-min grace (08:31→1h, 10:25→2.5h; ≤30→0), still worked.
@@ -163,25 +170,23 @@
       const wt = {};
       { const wi = hrTimeToHm(r.swipeIn); if (wi) wt.workIn = wi; const wo = hrTimeToHm(r.swipeOut); if (wo) wt.workOut = wo; }
       // OT estimate for days HR hasn't approved yet. When every approved-minute bucket is
-      // zero but the clock-out shows work past 18:30, estimate OT from the clock-out (same
-      // 18:30 baseline / floor-to-0.5h as the modal): weekday → overflow at 1.5×; Saturday
-      // rest-day → 9h at 1× + overflow at 3×. Approved days (any bucket > 0) keep HR's exact
-      // value untouched, and half-day Saturdays (clock-out ≤ 18:30) fall through to 0 rather
-      // than a wrong full-day base. Idempotent across re-imports; reconciles once HR approves
-      // (the diff then shows estimate→approved). Rides the existing `ot` patch key, so the OT
-      // category toggle and diff handle it like any other OT.
+      // zero, estimate OT from the clock-out (same 18:30 baseline / floor-to-0.5h as the
+      // modal): weekday → overflow at 1.5×; full Saturday rest-day (isFullSaturdayOut) → 9h
+      // at 1× + overflow at 3×. Approved days (any bucket > 0) keep HR's exact value
+      // untouched, and an earlier Saturday clock-out estimates nothing (null: no `ot` key),
+      // so hours typed by hand survive. Idempotent across re-imports; reconciles once HR
+      // approves (the diff then shows estimate→approved). Rides the existing `ot` patch key,
+      // so the OT category toggle and diff handle it like any other OT.
       let estOt = ot;
       if (m.every(x => !(Number(x) > 0)) && wt.workOut) {
-        const [oh, om] = wt.workOut.split(':').map(Number);
-        if (oh * 60 + om > 18 * 60 + 30) {
-          const overflow = otHoursFromClockOut(wt.workOut); // hours past 18:30, floored to 0.5
-          const dow = jsDate(r.ds).getDay();
-          if (dow === 6 && Number(r.holcod) === 2) estOt = { "1": 9, "1.5": 0, "2": 0, "3": overflow };
-          else if (dow >= 1 && dow <= 5 && Number(r.holcod) !== 3) estOt = { ...ot, "1.5": overflow };
-        }
+        const overflow = otHoursFromClockOut(wt.workOut); // hours past 18:30, floored to 0.5
+        const dow = jsDate(r.ds).getDay();
+        if (dow === 6 && Number(r.holcod) === 2) estOt = isFullSaturdayOut(wt.workOut) ? { "1": 9, "1.5": 0, "2": 0, "3": overflow } : null;
+        else if (dow >= 1 && dow <= 5 && Number(r.holcod) !== 3) estOt = { ...ot, "1.5": overflow };
       }
       if (A > 0) {
-        return { kind: 'absent', lateMin: L, leaveHours: 0, absentHours: A, ot, ...wt, ...hol };
+        const fullDay = A >= 9 && !hasSwipe;
+        return { kind: 'absent', lateMin: fullDay ? 0 : L, leaveHours: 0, absentHours: A, ...(fullDay ? { worked: false } : {}), ot, ...wt, ...hol };
       }
       if (leaveY) {
         // Detected leave type rides along only when confidently read from the export; when
@@ -198,7 +203,7 @@
       // restores worked when a day flips from a full-day leave (worked:false) back to a
       // worked day, so it no longer falls through to "absent". Weekends (no swipe) keep
       // their default worked:false → no spurious travel/worked marking.
-      return { kind: 'late', lateMin: L, leaveHours: 0, absentHours: 0, ...(hasSwipe ? { worked: true } : {}), ot: estOt, ...wt, ...hol };
+      return { kind: 'late', lateMin: L, leaveHours: 0, absentHours: 0, ...(hasSwipe ? { worked: true } : {}), ...(estOt ? { ot: estOt } : {}), ...wt, ...hol };
     }
 
     const OT_RATES = ["1", "1.5", "2", "3"];
@@ -234,6 +239,10 @@
         d.leave = patch.leaveHours > 0;
         if (patch.leaveHours >= 9) { d.leaveStart = '08:00'; d.leaveEnd = '18:00'; }
         else if (patch.leaveHours === 0) { d.leaveStart = ''; d.leaveEnd = ''; }
+      }
+      // Set by the day modal / leave request only; the HR patch never carries these.
+      for (const k of ['leaveStart', 'leaveEnd', 'satAbsent', 'sunAbsent', 'note']) {
+        if (k in patch) d[k] = patch[k];
       }
       if ('leaveType' in patch) d.leaveType = patch.leaveType;
       if ('worked' in patch) d.worked = patch.worked;
@@ -278,10 +287,12 @@
     // there (same-origin, so it can read #gvAttn) and sends it back via window.opener.postMessage.
     // Cross-origin postMessage is NOT blocked by CORS, so this is how "open company site → click
     // bookmark → data lands here" works with no copy-paste. We accept messages only from the
-    // company origin (plus our own Live Server, to allow local testing) and feed the HTML into
-    // the same import pipeline (ingestImportHtml). If the app isn't ready yet (not signed in /
-    // month not loaded), stash it and flush after loadMonth().
-    const IMPORT_MSG_ORIGINS = ['https://hr.rsquanta.com', 'http://127.0.0.1:5500'];
+    // company origin (plus our own Live Server, only when running on it, to allow local testing)
+    // and feed the HTML into the same import pipeline (ingestImportHtml). If the app isn't ready
+    // yet (not signed in / month not loaded), stash it and flush after loadMonth().
+    const IMPORT_MSG_ORIGINS = location.hostname === '127.0.0.1'
+      ? ['https://hr.rsquanta.com', 'http://127.0.0.1:5500']
+      : ['https://hr.rsquanta.com'];
     let pendingExternalImport = null;
     let appReady = false;
 
@@ -372,7 +383,7 @@
       rows.forEach(r => importTargetKeys(r.ds).forEach(k => allKeys.add(k)));
       const monthData = {};
       for (const key of allKeys) {
-        if (key === curKey) { monthData[key] = mdata; continue; }
+        if (key === curKey && monthReady()) { monthData[key] = mdata; continue; }
         const snap = await userMonths().doc(key).get();
         monthData[key] = snap.exists ? snap.data() : { days: {} };
       }
@@ -450,7 +461,10 @@
     }
     function importBgClick(e) { if (e.target === document.getElementById('importbg')) closeImport(); }
 
-    async function writeDayPatch(key, dayMap, curKey, onlyIfExists) {
+    // A doc this creates holds only these days, so it isn't a "recorded" month until the
+    // month is opened and saved (isMonthRecorded) — but when it is opened, these edits are
+    // there rather than a default-worked day, so the next month's travel stays right.
+    async function writeDayPatch(key, dayMap, curKey) {
       if (key === curKey) {
         // current month: update in-memory; the caller persists it via save()
         for (const ds in dayMap) {
@@ -461,7 +475,6 @@
       }
       const ref = userMonths().doc(key);
       const snap = await ref.get();
-      if (!snap.exists && onlyIfExists) return; // don't create a phantom "recorded" month
       const data = snap.exists ? snap.data() : { days: {} };
       if (!data.days) data.days = {};
       for (const ds in dayMap) {
@@ -476,6 +489,7 @@
       // Only write the days that actually change — unchanged months are never touched.
       const changed = importDiff.filter(d => d.changed);
       if (!changed.length) { closeImport(); showToast('ไม่มีอะไรต้องบันทึก'); return; }
+      if (!monthReady()) { showToast('กำลังโหลดเดือน… ลองใหม่อีกครั้ง'); return; }
 
       const btn = document.getElementById('import-apply-btn');
       if (btn) { btn.disabled = true; btn.textContent = 'กำลังบันทึก…'; }
@@ -483,15 +497,9 @@
       const { primary, secondary } = buildImportWrites(changed);
       const curKey = monthKey(Y, M);
       try {
-        for (const key of Object.keys(primary)) await writeDayPatch(key, primary[key], curKey, false);
-        for (const key of Object.keys(secondary)) {
-          const dayMap = secondary[key];
-          // For day>=25 this next month IS the day's OT period — if the patch carries real
-          // OT, create the doc (don't drop OT pay); otherwise keep it a display-only mirror.
-          const hasOt = Object.values(dayMap).some(p => p.ot && otTotal(p.ot) > 0);
-          await writeDayPatch(key, dayMap, curKey, !hasOt);
-        }
-        if (primary[curKey] || secondary[curKey]) { renderAll(); save(); }
+        for (const key of Object.keys(primary)) await writeDayPatch(key, primary[key], curKey);
+        for (const key of Object.keys(secondary)) await writeDayPatch(key, secondary[key], curKey);
+        if (primary[curKey] || secondary[curKey]) { renderAll(); await persistMonth(); }
       } catch (e) {
         if (btn) { btn.disabled = false; btn.textContent = `ยืนยันบันทึก ${changed.length} วัน`; }
         showToast('บันทึกไม่สำเร็จ: ' + ((e && e.message) || e));

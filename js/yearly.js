@@ -20,11 +20,19 @@
       renderYearView();
     }
 
+    // A month counts as recorded once its doc holds every calendar day: save() writes all of
+    // them, and a whole-month import does too. A doc holding only some days (a partial import,
+    // or a day mirrored from a neighbouring month) would otherwise fill the rest with
+    // default-worked pay.
+    function isMonthRecorded(data, year, month) {
+      return attDates(year, month).every(ds => data.days[ds]);
+    }
+
     // Fetch all 12 months of `year`, then run calc() per recorded month by
     // temporarily swapping the view globals. All awaits happen BEFORE the swap;
     // the swap loop is fully synchronous; globals are always restored afterwards.
-    // Months with no Firestore doc are returned as { populated:false } so they
-    // don't contribute default/phantom travel pay or net to the yearly totals.
+    // Unrecorded months are returned as { populated:false } so they don't
+    // contribute default/phantom travel pay or net to the yearly totals.
     async function computeYear(year) {
       const snaps = await Promise.all(
         Array.from({ length: 12 }, (_, i) => userMonths().doc(monthKey(year, i + 1)).get())
@@ -37,6 +45,7 @@
           if (!snap.exists) { results.push({ month: i + 1, populated: false, c: null }); continue; }
           const data = snap.data();
           if (!data.days) data.days = {};
+          if (!isMonthRecorded(data, year, i + 1)) { results.push({ month: i + 1, populated: false, c: null }); continue; }
           Y = year; M = i + 1; mdata = data;
           results.push({ month: i + 1, populated: true, c: calc() });
         }
@@ -134,7 +143,7 @@
       </div>
     </div>`;
 
-      const caveat = `<div class="yr-caveat">ℹ️ Each row is a salary month — its OT period runs the 25th of the previous month through the 24th. Months you haven't recorded yet are shown as “—” and excluded from totals. Hour counts are exact; money columns are recomputed at your <em>current</em> salary settings, not the settings in effect at the time.</div>`;
+      const caveat = `<div class="yr-caveat">ℹ️ Each row is a salary month — its OT period runs the 25th of the previous month through the 24th. Months you haven't recorded yet, or only partly imported, are shown as “—” and excluded from totals until you open and save them. Hour counts are exact; money columns are recomputed at your <em>current</em> salary settings, not the settings in effect at the time.</div>`;
 
       el.innerHTML = cards + table + caveat;
     }

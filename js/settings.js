@@ -158,7 +158,8 @@
       collectOtherIncomes();
       collectOtherDeductions();
       const s = { base, travel, ssf, otherIncomes: OTHER_INCOMES, otherDeductions: OTHER_DEDUCTIONS, accent: _accentPending };
-      db.collection('users').doc(currentUser.uid).set({ settings: s }, { merge: true });
+      db.collection('users').doc(currentUser.uid).set({ settings: s }, { merge: true })
+        .catch(e => showToast('บันทึกการตั้งค่าไม่สำเร็จ: ' + ((e && e.message) || e), 5000));
       applySettings(s);
       renderAll();
       closeSettings();

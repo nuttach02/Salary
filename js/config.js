@@ -36,6 +36,8 @@
     let editDate = null;
     // Day's worked/leave state captured when the modal opens, so clearing leave can restore it
     let _editWorkedOrig = true, _editHadLeave = false;
+    // Copy of the day as the modal opened it, so saving mirrors only what actually changed
+    let _editDayOrig = null;
     let mdata = {};
 
     // ── DARK MODE ──────────────────────────────────────────────────────────────

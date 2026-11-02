@@ -57,7 +57,7 @@ Load order and responsibilities:
 
 **Global mutable state** (`config.js`): `Y`/`M` (current view), `mdata` (loaded month doc), `editDate` (day open in modal), and salary constants `BASE`/`TRAVEL`/`SSF`/`HOURLY`/`OTHER_INCOMES`/`OTHER_DEDUCTIONS` (overwritten by `applySettings`).
 
-**Render pipeline:** almost every mutation ends with `renderAll()` → `renderGrid()` (×2 calendars) + `renderSummary()`. `save()` writes the whole `mdata` doc back to Firestore (fire-and-forget, not awaited) and shows a toast.
+**Render pipeline:** almost every mutation ends with `renderAll()` → `renderGrid()` (×2 calendars) + `renderSummary()`. `save()` writes the whole `mdata` doc back to Firestore, then shows a success or error toast once the write settles.
 
 ## Domain logic (read `calc()` + the date helpers before changing money math)
 
@@ -67,11 +67,14 @@ Load order and responsibilities:
 - **Absence**: daily rate `BASE/30`. A weekday is absent if not worked, not holiday, not on leave. Sat/Sun only deduct when explicitly flagged (`satAbsent`/`sunAbsent`).
 - **Lateness**: `lateMin` per day deducts `lateMin × (BASE/30/9/60)` (per-minute). Summed over the attendance month.
 - **Leave is hour-based** (`leaveHours`, 0–9; `leaveHrsOf()` treats legacy `leave:true` as 9h). Leave keeps full salary and is never absent. A **full day (9h) ⇒ `worked:false`** (no travel); a **partial leave (<9h) stays `worked:true`** (travel paid) — i.e. leave and worked are *not* mutually exclusive anymore. The Leave Request modal bulk-applies full-day leave across a range.
-- **Absent hours** (`absentHours`) is a **record-only** figure (badge + summary), mirroring leave hours — it does **not** itself deduct; the deduction comes from `lateMin` / the full-day `worked:false` path.
+- **Absent hours** (`absentHours`) is a **record-only** figure (badge + summary), mirroring leave hours — it does **not** itself deduct; the deduction comes from `lateMin` / the full-day `worked:false` path. An HR import of a full-day absence (`Absenthrs≥9`, no swipe) takes that path: `worked:false`, `lateMin:0`.
+- **Saturday OT estimate** (HR not approved yet): clock-out from 18:00 = 9h at 1× plus overflow past 18:30 at 3×; earlier estimates nothing. `isFullSaturdayOut()` is shared by the modal and `classifyImportRow`.
 
 ## The dual-doc storage gotcha (most common source of bugs)
 
-A day on the **25th–end** of month M is stored in **two independent docs**: M's own doc (its calendar/attendance month) *and* M+1's doc (M+1's OT period renders it). `calc()` filters by month-prefix (attendance) and `otDates` range (OT), so the duplicate **never double-counts** — but the two copies can **diverge**: editing such a day while viewing M+1 only changes M+1's copy. Any code that reads/writes one copy must consider the other. Note OT is OT-period-scoped, so a day≥25's OT *belongs to* M+1's doc, not M's.
+A day on the **25th–end** of month M is stored in **two independent docs**: M's own doc (its calendar/attendance month) *and* M+1's doc (M+1's OT period renders it). `calc()` filters by month-prefix (attendance) and `otDates` range (OT), so the duplicate **never double-counts**. Every writer keeps both copies in step: `saveDay` mirrors only the fields the edit changed (`mirrorDayEdit`), and the leave request and import write both docs (`importTargetKeys`). Copies can still differ in data written before this, so any code that reads one copy must consider the other. Note OT is OT-period-scoped, so a day≥25's OT *belongs to* M+1's doc, not M's.
+
+**`mdata` vs `Y`/`M`:** month navigation moves `Y`/`M` before the fetch finishes, so check `monthReady()` before reading or writing `mdata` as the current month. `loadMonth` ignores stale responses and `save()` refuses to write while not ready.
 
 ## HR import pipeline (`OvertimeApplication.html`-style exports, in `js/import.js`)
 
@@ -79,12 +82,12 @@ Upload a payroll HTML export via the OT pane button → parse client-side → re
 - `parseAttendanceHtml(text)` — `DOMParser` over the `<table id="gvAttn">`; one row per `[id$='gvlblWrkdat']`. Reads spans by `[id$='gvlbl…']` and hidden inputs by `[id$='gvhd…'].value` (use the **hidden** `gvhdMin0..3` / `gvhdHolcod` — visible spans are blank on recent/pending days).
 - `classifyImportRow(r)` → a **patch** (only the keys it sets are applied). Mapping: `Latmin`→late deduction; `Absenthrs>0`→absent record; `Leacod='Y'` no-swipe→full-day leave, with-swipe→partial leave `L≤30?0:ceil(L/30)×0.5` (same HR rounding as the late→absent estimate); OT `gvhdMin0/1/2/3 ÷60`→`ot["1"/"1.5"/"2"/"3"]`; `Holcod=3`→`isHoliday` (additive — only ever sets true). OT/holiday ride along with any classification.
 - `prepareImportDiff()` / `diffPatch()` — compares each patch field against the day's **current value in every doc it lives in** (`importTargetKeys`: primary + next month for day≥25), so a change is detected even if one copy diverged. `openImportPreview()` shows per-day `old→new`; only changed days are written.
-- `applyImport()` → `buildImportWrites()` (primary + secondary routing) → `writeDayPatch()`. Secondary (display-mirror) writes use `onlyIfExists` to avoid creating phantom months — except a day≥25 carrying real OT *does* create the next month (its OT-period home).
+- `applyImport()` → `buildImportWrites()` (primary + secondary routing) → `writeDayPatch()`, which creates a missing month doc holding only those days. Such a partial doc isn't a recorded month (`isMonthRecorded`) until the month is opened and saved.
 - An external-page bridge (`window.addEventListener('message', …)`, origins in `IMPORT_MSG_ORIGINS`) lets the HR site push an export in via `postMessage`; if it arrives before auth finishes it's queued in `pendingExternalImport` and replayed once `appReady`.
 
 ## Yearly Summary (`js/yearly.js`)
 
-`openYearView()` → `computeYear(year)` fetches all 12 month docs, then runs `calc()` per month by **temporarily swapping the `Y`/`M`/`mdata` globals** (all `await`s happen before the swap; the loop is synchronous; `try/finally` restores). Months with no Firestore doc are excluded from totals (so untouched months don't inject default-worked pay). `sumYear()` aggregates.
+`openYearView()` → `computeYear(year)` fetches all 12 month docs, then runs `calc()` per month by **temporarily swapping the `Y`/`M`/`mdata` globals** (all `await`s happen before the swap; the loop is synchronous; `try/finally` restores). Months whose doc is missing or lacks any calendar day (`isMonthRecorded`) are excluded from totals (so untouched or partly imported months don't inject default-worked pay). `sumYear()` aggregates.
 
 ## Conventions
 

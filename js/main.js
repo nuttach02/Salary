@@ -67,7 +67,7 @@
     }
 
     let _toastTimer;
-    function showToast(msg) {
+    function showToast(msg, ms = 1800) {
       const t = document.getElementById('toast');
       t.textContent = msg;
       t.className = 'toast in';
@@ -75,7 +75,7 @@
       _toastTimer = setTimeout(() => {
         t.className = 'toast out';
         setTimeout(() => { t.className = 'toast'; }, 260);
-      }, 1800);
+      }, ms);
     }
 
     // Auto-select content of number inputs on focus for easier editing
@@ -92,8 +92,7 @@
     document.addEventListener('touchend', e => {
       const dx = e.changedTouches[0].clientX - _swipeX;
       const dy = e.changedTouches[0].clientY - _swipeY;
-      const anyOpen = document.getElementById('mbg').classList.contains('open') ||
-        document.getElementById('setbg').classList.contains('open');
+      const anyOpen = ['mbg', 'setbg', 'leavebg', 'importbg'].some(id => document.getElementById(id).classList.contains('open'));
       if (Math.abs(dx) > 80 && Math.abs(dx) > Math.abs(dy) * 1.5 && !anyOpen)
         changeMonth(dx < 0 ? 1 : -1);
     }, { passive: true });
@@ -149,6 +148,13 @@
       } else {
         currentUser = null;
         appReady = false;
+        // Nothing of the previous user may carry into the next sign-in in this tab: an
+        // account with no saved settings keeps whatever applySettings last set.
+        _monthReq++;
+        mdataKey = null;
+        mdata = {};
+        applySettings({});
+        _prevNet = _prevOtHrs = _prevLeaveHrs = null;
         showAuthScreen();
       }
     });

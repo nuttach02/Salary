@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ดึง attendance → salaryot
 // @namespace    salaryot
-// @version      1.1
+// @version      1.2
 // @description  แปะปุ่มลอยบนหน้า attendance ของ rsquanta เพื่อคัดลอกตาราง #gvAttn ไปวางใน salaryot / Floating button on the rsquanta attendance page that copies the #gvAttn table for pasting into salaryot.
 // @match        https://hr.rsquanta.com/HROldPages/Attn/Modify_Attandence_assistant_min.aspx*
 // @run-at       document-idle
@@ -11,6 +11,10 @@
   'use strict';
 
   var msgEl;
+
+  // ส่งข้อมูลให้เฉพาะ origin ของ salaryot เท่านั้น. Attendance data only ever goes to these.
+  var SALARYOT_ORIGINS = ['https://otplan.vercel.app', 'http://127.0.0.1:5500'];
+  var ACK_TIMEOUT_MS = 1500;
 
   // เด้งข้อความสั้น ๆ เหนือปุ่ม (auto-hide). A small toast above the button.
   function flash(text) {
@@ -34,18 +38,8 @@
       try { el.setAttribute('value', el.value); } catch (e) {}
     });
     var html = t.outerHTML;
-    // ส่งเข้า salaryot ตรง ๆ ผ่านแท็บที่เปิดหน้านี้ (window.opener.postMessage) — ข้ามโดเมนได้
-    // ไม่ติด CORS, ไม่ต้องก็อปวาง. Push straight into the salaryot tab that opened this page.
-    var op = window.opener;
-    if (op && !op.closed) {
-      try {
-        op.postMessage({ salaryotImport: 1, html: html }, '*');
-        try { op.focus(); } catch (e) {}
-        flash('✅ ส่งเข้า salaryot แล้ว — สลับไปดู preview');
-        return;
-      } catch (e) {}
-    }
-    // fallback: คัดลอกลง clipboard เมื่อไม่ได้เปิดหน้านี้จากปุ่มใน salaryot (ไม่มี opener)
+    // คัดลอกไว้ก่อนเลย เพราะต้องทำใน click gesture — ถ้าส่งไม่สำเร็จจะได้มีสำรอง.
+    // Copy up front: it must happen inside the click gesture, before we know if the send worked.
     var ok = false;
     try { // sync path: อยู่ใน click gesture, ใช้ได้บนเว็บ HTTP intranet
       var a = document.createElement('textarea');
@@ -54,6 +48,31 @@
       ok = document.execCommand('copy');
       document.body.removeChild(a);
     } catch (e) {}
+    // ส่งเข้า salaryot ตรง ๆ ผ่านแท็บที่เปิดหน้านี้ (window.opener.postMessage) — ข้ามโดเมนได้
+    // ไม่ติด CORS, ไม่ต้องก็อปวาง. Push straight into the salaryot tab that opened this page;
+    // the send only counts once salaryot acks it (salaryotReady).
+    var op = window.opener;
+    if (!op || op.closed) { reportCopied(ok, html); return; }
+    var timer;
+    function onAck(e) {
+      if (SALARYOT_ORIGINS.indexOf(e.origin) < 0 || !e.data || !e.data.salaryotReady) return;
+      clearTimeout(timer);
+      window.removeEventListener('message', onAck);
+      try { op.focus(); } catch (err) {}
+      flash('✅ ส่งเข้า salaryot แล้ว — สลับไปดู preview');
+    }
+    window.addEventListener('message', onAck);
+    timer = setTimeout(function () {
+      window.removeEventListener('message', onAck);
+      reportCopied(ok, html);
+    }, ACK_TIMEOUT_MS);
+    SALARYOT_ORIGINS.forEach(function (origin) {
+      try { op.postMessage({ salaryotImport: 1, html: html }, origin); } catch (e) {}
+    });
+  }
+
+  // fallback: แจ้งผลการคัดลอกลง clipboard เมื่อไม่ได้เปิดหน้านี้จากปุ่มใน salaryot หรือไม่มีการตอบรับ
+  function reportCopied(ok, html) {
     if (ok) {
       flash('📋 คัดลอกแล้ว (ไม่พบ salaryot ที่เปิดจากปุ่ม) — ไปกด “วางจากบริษัท”');
     } else if (navigator.clipboard) { // enhancement: secure context
