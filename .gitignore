@@ -1,0 +1,6 @@
+# HR exports contain personal data — never commit them
+OvertimeApplication.html
+
+# Local-only files
+*.local-backup
+.claude/settings.local.json

@@ -1,0 +1,9 @@
+# Keep project docs, tooling and test pages off the public site
+.claude
+.impeccable
+.gitignore
+CLAUDE.md
+PRODUCT.md
+bm-demo-test.html
+OvertimeApplication.html
+*.local-backup
