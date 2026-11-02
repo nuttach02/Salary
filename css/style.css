@@ -2167,6 +2167,411 @@
       font-weight: 600
     }
 
+    /* ── DAY MODAL ───────────────────────────────────────────────────────────── */
+    /* Header and footer stay put while the body scrolls, so Save and the OT total are
+       always in view. Dialog with two columns on desktop, bottom sheet on a phone. */
+    .day-modal {
+      display: flex;
+      flex-direction: column;
+      width: 860px;
+      padding: 0;
+      overflow: hidden
+    }
+
+    .day-modal.dm-narrow {
+      width: 460px
+    }
+
+    .day-modal .mhdr {
+      flex-shrink: 0;
+      margin: 0;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .dm-title {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 10px;
+      min-width: 0
+    }
+
+    .dm-title .mtype {
+      margin: 0
+    }
+
+    .day-modal .mcls {
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0
+    }
+
+    #mcontent {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0
+    }
+
+    .dm-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+      grid-template-rows: auto 1fr;
+      grid-template-areas: "status ot" "note ot";
+      gap: 16px 24px;
+      padding: 16px 20px 18px;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0
+    }
+
+    .dm-status {
+      grid-area: status;
+      min-width: 0
+    }
+
+    .dm-ot,
+    .dm-outside {
+      grid-area: ot;
+      min-width: 0
+    }
+
+    .dm-outside {
+      align-self: start;
+      margin-top: 0
+    }
+
+    .dm-note {
+      grid-area: note;
+      margin-top: 0
+    }
+
+    .dm-narrow .dm-body {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: none;
+      grid-template-areas: "status" "ot" "note"
+    }
+
+    .dm-h {
+      font-size: .75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--gray);
+      margin-bottom: 8px
+    }
+
+    .dm-h small {
+      font-size: .72rem;
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0;
+      margin-left: 4px
+    }
+
+    .dm-tiles {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px
+    }
+
+    .dtile {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 60px;
+      padding: 9px 11px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background .15s, border-color .15s
+    }
+
+    .dtile:hover {
+      background: var(--surface)
+    }
+
+    .dtile:focus-within {
+      border-color: var(--blue)
+    }
+
+    .dtile:has(.sw input:checked) {
+      background: var(--green-lt);
+      border-color: var(--green)
+    }
+
+    .dtile-txt {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      min-width: 0
+    }
+
+    .dtile .tl {
+      font-size: .84rem;
+      font-weight: 600;
+      line-height: 1.3;
+      color: var(--text)
+    }
+
+    .dtile .td {
+      font-size: .7rem;
+      line-height: 1.35;
+      color: var(--gray)
+    }
+
+    .dtile .sw {
+      display: block;
+      width: 36px;
+      height: 20px
+    }
+
+    .dtile .sw-sl::before {
+      width: 14px;
+      height: 14px
+    }
+
+    .dtile .sw input:checked~.sw-sl::before {
+      transform: translateX(16px)
+    }
+
+    .dtile>.otinp {
+      flex: 0 0 auto;
+      width: 58px;
+      max-width: 58px
+    }
+
+    .dm-status .leave-detail {
+      margin: 8px 0 0
+    }
+
+    .dm-status .leave-detail .sat-presets {
+      margin-bottom: 8px
+    }
+
+    .dm-times {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: end
+    }
+
+    .dm-times .leave-fld .otinp {
+      width: 100%;
+      max-width: none;
+      min-height: 38px
+    }
+
+    .dm-times .preset-btn {
+      min-height: 38px
+    }
+
+    .dm-calc {
+      font-size: .74rem;
+      line-height: 1.4;
+      color: var(--gray);
+      margin-top: 6px
+    }
+
+    .dm-calc:empty {
+      display: none
+    }
+
+    .dm-presets {
+      margin-top: 12px
+    }
+
+    .dm-qhead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px
+    }
+
+    .dm-clear {
+      background: none;
+      border: none;
+      padding: 4px 6px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: .72rem;
+      font-weight: 600;
+      color: var(--red)
+    }
+
+    .dm-clear:hover {
+      background: var(--red-lt)
+    }
+
+    .dm-qgrid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 5px
+    }
+
+    .dm-qgrid .preset-btn {
+      min-height: 44px;
+      padding: 4px 2px;
+      white-space: normal
+    }
+
+    .preset-btn.active {
+      background: var(--blue);
+      border-color: var(--blue);
+      color: var(--on-accent)
+    }
+
+    .preset-btn.active:hover {
+      background: var(--blue);
+      color: var(--on-accent)
+    }
+
+    .dm-rates {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border)
+    }
+
+    .dm-rate {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0
+    }
+
+    .dm-rate-lbl {
+      font-size: .84rem;
+      font-weight: 700;
+      color: var(--text)
+    }
+
+    .dm-rate-lbl small {
+      display: block;
+      font-size: .66rem;
+      font-weight: 500;
+      color: var(--gray)
+    }
+
+    .dm-rate .otinp {
+      flex: none;
+      width: 100%;
+      max-width: none;
+      min-height: 38px
+    }
+
+    .dm-rate .otprev {
+      min-width: 0;
+      min-height: 1.1em;
+      font-size: .68rem;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .dm-foot {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--card)
+    }
+
+    .dm-total {
+      flex: 1;
+      min-width: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--green);
+      font-variant-numeric: tabular-nums
+    }
+
+    .dm-foot .btn {
+      min-height: 42px
+    }
+
+    @media (max-width: 760px) {
+      .day-modal {
+        width: 520px
+      }
+
+      .dm-body {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: none;
+        grid-template-areas: "status" "ot" "note"
+      }
+    }
+
+    @media (max-width: 600px) {
+      #mbg {
+        align-items: flex-end;
+        padding: 0
+      }
+
+      .day-modal,
+      .day-modal.dm-narrow {
+        width: 100%;
+        max-height: 92vh;
+        max-height: 92dvh;
+        border: none;
+        border-radius: 18px 18px 0 0
+      }
+
+      .mbg .day-modal {
+        transform: translateY(32px);
+        transition: transform .22s ease-out, opacity .18s
+      }
+
+      .mbg.open .day-modal {
+        transform: translateY(0)
+      }
+
+      .day-modal .mhdr {
+        padding: 12px 16px
+      }
+
+      .dm-body {
+        padding: 14px 16px 16px
+      }
+
+      .dm-qgrid {
+        grid-template-columns: repeat(4, minmax(0, 1fr))
+      }
+
+      /* 16px keeps iOS from zooming the page when a field takes focus */
+      .day-modal input,
+      .day-modal textarea {
+        font-size: 16px
+      }
+
+      .dm-foot {
+        padding: 10px 16px calc(10px + env(safe-area-inset-bottom))
+      }
+
+      .dm-foot .btn {
+        padding: 8px 16px
+      }
+    }
+
+    /* Two tiles leave too little room for their labels on the smallest phones */
+    @media (max-width: 350px) {
+      .dm-tiles {
+        grid-template-columns: minmax(0, 1fr)
+      }
+
+      .dtile {
+        min-height: 50px
+      }
+    }
+
     /* ── YEARLY SUMMARY ──────────────────────────────────────────────────────── */
     .yr-wrap {
       max-width: 1100px;

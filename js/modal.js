@@ -19,33 +19,29 @@
       const typeLabel = isSun ? 'Sunday – Rest Day' : isSat ? 'Saturday – Attendance Day' : d.isHoliday ? 'Public Holiday' : 'Regular Workday';
       const typeCls = isSun ? 'sunday' : isSat ? 'saturday' : d.isHoliday ? 'holiday' : 'weekday';
 
-      let html = `<div class="mtype ${typeCls}">${typeLabel}</div>`;
+      const typeEl = document.getElementById('mtype');
+      typeEl.textContent = typeLabel;
+      typeEl.className = `mtype ${typeCls}`;
+      document.getElementById('modal').classList.toggle('dm-narrow', !inOT);
 
-      if (!isSun) {
-        html += `<div class="trow">
-      <div><div class="tl">🏖️ Public Holiday</div><div class="td">Mark as official holiday – enables 1×/2×/3× OT rates</div></div>
-      <label class="sw"><input type="checkbox" id="chk-hol" ${d.isHoliday ? 'checked' : ''}><span class="sw-sl"></span></label>
-    </div>`;
-      }
+      const tile = (inputId, rowId, title, sub, on, hidden) => `<label class="dtile"${rowId ? ` id="${rowId}"` : ''}${hidden ? ' style="display:none"' : ''}>
+      <span class="dtile-txt"><span class="tl">${title}</span><span class="td">${sub}</span></span>
+      <span class="sw"><input type="checkbox" id="${inputId}" ${on ? 'checked' : ''}><span class="sw-sl"></span></span>
+    </label>`;
 
-      html += `<div class="trow" id="wrow"${d.isHoliday ? ' style="display:none"' : ''}>
-      <div><div class="tl">✅ Worked today</div><div class="td">${isWkd ? `Mon–Fri regular hours → +฿${TRAVEL} travel allowance` : `Mark as worked this ${isSun ? 'Sunday' : 'Saturday'} → +฿${TRAVEL} travel allowance`}</div></div>
-      <label class="sw"><input type="checkbox" id="chk-wrk" ${d.worked ? 'checked' : ''}><span class="sw-sl"></span></label>
-    </div>
-    <div class="trow" id="nrow">
-      <div><div class="tl">🌙 กะกลางคืน (Night shift)</div><div class="td">20:00–06:00, OT หลัง 06:30 → +฿${NIGHT_ALLOWANCE} เมื่อมาทำงาน</div></div>
-      <label class="sw"><input type="checkbox" id="chk-night" ${d.nightShift ? 'checked' : ''}><span class="sw-sl"></span></label>
-    </div>`;
+      // Status tiles sit in one grid; their detail panels follow it, so opening a panel
+      // never leaves a hole between tiles. Rows keep their ids for the holiday toggle.
+      let tiles = tile('chk-wrk', 'wrow', '✅ Worked today', `+฿${TRAVEL} ค่าเดินทาง`, d.worked, d.isHoliday)
+        + tile('chk-night', 'nrow', '🌙 กะกลางคืน', `20:00–06:00 · +฿${NIGHT_ALLOWANCE}`, d.nightShift, false);
+      if (!isSun) tiles += tile('chk-hol', '', '🏖️ Public Holiday', 'ใช้เรท 1× / 2× / 3×', d.isHoliday, false);
 
+      let details = '';
       if (isWkd) {
         const lh = leaveHrsOf(d);
         const isLeave = lh > 0;
         const lt = leaveTypeOf(d);
-        html += `<div class="trow" id="lrow"${d.isHoliday ? ' style="display:none"' : ''}>
-      <div><div class="tl">🏖️ On Leave</div><div class="td">Record paid leave by the hour — full day = 9h, half day = 4h</div></div>
-      <label class="sw"><input type="checkbox" id="chk-leave" ${isLeave ? 'checked' : ''}><span class="sw-sl"></span></label>
-    </div>
-    <div class="leave-detail" id="leave-detail"${(isLeave && !d.isHoliday) ? '' : ' style="display:none"'}>
+        tiles += tile('chk-leave', 'lrow', '🏖️ On Leave', 'ลารายชั่วโมง ได้เงินเต็ม', isLeave, d.isHoliday);
+        details += `<div class="leave-detail" id="leave-detail"${(isLeave && !d.isHoliday) ? '' : ' style="display:none"'}>
       <div class="lt-row">
         <span class="preset-label">ประเภท:</span>
         <button class="lt-btn${lt === 'personal' ? ' active' : ''}" data-lt="personal" onclick="setLeaveType('personal');return false">🧳 ลากิจ Personal</button>
@@ -64,16 +60,11 @@
       </div>
       <div class="ottotal" id="leave-tot"></div>
     </div>`;
-      }
 
-      if (isWkd) {
         const ah = absentHrsOf(d);
         const isAbsent = ah > 0;
-        html += `<div class="trow" id="abrow"${d.isHoliday ? ' style="display:none"' : ''}>
-      <div><div class="tl">❌ ขาดงาน (Absent)</div><div class="td">บันทึกชั่วโมงขาด — เต็มวัน 9 ชม. / ครึ่งวัน 4 ชม. (หักเงินอิงนาทีสาย ไม่หักจากชั่วโมงนี้)</div></div>
-      <label class="sw"><input type="checkbox" id="chk-absent" ${isAbsent ? 'checked' : ''}><span class="sw-sl"></span></label>
-    </div>
-    <div class="leave-detail" id="absent-detail"${(isAbsent && !d.isHoliday) ? '' : ' style="display:none"'}>
+        tiles += tile('chk-absent', 'abrow', '❌ ขาดงาน', 'บันทึกชั่วโมงขาด', isAbsent, d.isHoliday);
+        details += `<div class="leave-detail" id="absent-detail"${(isAbsent && !d.isHoliday) ? '' : ' style="display:none"'}>
       <div class="sat-presets">
         <span class="preset-label">⚡ Quick:</span>
         <button class="preset-btn" onclick="absentPreset('half');return false"><span>ครึ่งวัน</span><small>4h</small></button>
@@ -87,74 +78,62 @@
     </div>`;
       }
 
-      if (isSat) {
-        html += `<div class="trow" id="sarow"${d.isHoliday ? ' style="display:none"' : ''}>
-      <div><div class="tl">❌ Absent (deduct salary)</div><div class="td">Mark this Saturday as an absence — daily rate will be deducted</div></div>
-      <label class="sw"><input type="checkbox" id="chk-sat-absent" ${d.satAbsent ? 'checked' : ''}><span class="sw-sl"></span></label>
-    </div>`;
-      }
+      if (isSat) tiles += tile('chk-sat-absent', 'sarow', '❌ ขาดงาน', 'หักเงิน 1 วัน', d.satAbsent, d.isHoliday);
+      if (isSun) tiles += tile('chk-sun-absent', '', '❌ ขาดงาน', 'หักเงิน 1 วัน', d.sunAbsent, false);
 
       if (isWkd || isSat) {
-        html += `<div class="trow" id="laterow"${d.isHoliday ? ' style="display:none"' : ''}>
-      <div><div class="tl">⏰ มาสาย (นาที)</div><div class="td">หักเงินตามนาที — ฿${fmt(BASE / 30 / 9 / 60)}/นาที</div></div>
-      <input type="number" class="otinp" id="late-min" value="${d.lateMin || ''}" min="0" step="1" placeholder="0" style="max-width:70px">
-    </div>`;
+        tiles += `<label class="dtile" id="laterow"${d.isHoliday ? ' style="display:none"' : ''}>
+      <span class="dtile-txt"><span class="tl">⏰ มาสาย</span><span class="td">นาที · ฿${fmt(BASE / 30 / 9 / 60)}/นาที</span></span>
+      <input type="number" class="otinp" id="late-min" value="${d.lateMin || ''}" min="0" step="1" placeholder="0" inputmode="numeric">
+    </label>`;
       }
 
-      if (isSun) {
-        html += `<div class="trow">
-      <div><div class="tl">❌ Absent (deduct salary)</div><div class="td">Mark this Sunday as an absence — daily rate will be deducted</div></div>
-      <label class="sw"><input type="checkbox" id="chk-sun-absent" ${d.sunAbsent ? 'checked' : ''}><span class="sw-sl"></span></label>
-    </div>`;
-      }
+      let html = `<div class="dm-body">
+    <section class="dm-status">
+      <h4 class="dm-h">สถานะวันนี้</h4>
+      <div class="dm-tiles">${tiles}</div>
+      ${details}
+    </section>`;
 
       if (inOT) {
-        const rinfo = { "1.5": "1.5× Weekday OT", "1": "1× Holiday pay", "2": "2× Holiday OT", "3": "3× Holiday OT" };
-        html += `<div class="otsect"><h4>⏱ OT Hours</h4>`;
-        if (isWkd && !d.isHoliday) {
-          html += `<div class="sat-presets" style="margin-bottom:6px">
-    <span class="preset-label">🕐 คำนวณจากเวลาออก-เข้างาน (วันปกติ 1.5×)</span>
-  </div>
-  <div class="leave-times">
+        const rinfo = { "1.5": ["OT ปกติ", "1.5× Weekday OT"], "1": ["วันหยุด", "1× Holiday pay"], "2": ["OT หยุด", "2× Holiday OT"], "3": ["OT หยุด", "3× Holiday OT"] };
+        const showClock = !d.isHoliday;
+        const isRest = isSat || isSun;
+        const hint = !showClock ? 'วันหยุด' : isRest ? `วัน${isSun ? 'อาทิตย์' : 'เสาร์'} 1× + 3×` : 'วันปกติ 1.5×';
+        html += `<section class="dm-ot"><h4 class="dm-h">⏱ OT Hours <small>${hint}</small></h4>`;
+        if (showClock) {
+          html += `<div class="dm-times">
     <label class="leave-fld">เข้า<input type="time" class="otinp" id="wt-in" value="${d.workIn || ''}"></label>
-    <label class="leave-fld">ออก<input type="time" class="otinp" id="wt-out" data-otkind="wkd" value="${d.workOut || ''}" oninput="otFromTime(true)"></label>
-    <button class="preset-btn" onclick="otFromTime(true);return false" style="align-self:flex-end">↧ ใส่ OT</button>
+    <label class="leave-fld">ออก<input type="time" class="otinp" id="wt-out" data-otkind="${isRest ? 'sat' : 'wkd'}"${isRest ? ` data-dayname="${isSun ? 'อาทิตย์' : 'เสาร์'}"` : ''} value="${d.workOut || ''}" oninput="otFromTime(true)"></label>
+    <button class="preset-btn" onclick="otFromTime(true);return false">↧ ใส่ OT</button>
   </div>
-  <div class="ottotal" id="wt-calc"></div>
-  <div class="sat-presets" id="ot-presets">${otPresetButtons(false, !!d.nightShift)}</div>`;
-        } else if ((isSat || isSun) && !d.isHoliday) {
-          html += `<div class="sat-presets" style="margin-bottom:6px">
-    <span class="preset-label">🕐 คำนวณจากเวลาออก-เข้างาน (วัน${isSun ? 'อาทิตย์' : 'เสาร์'} 1× + 3×)</span>
-  </div>
-  <div class="leave-times">
-    <label class="leave-fld">เข้า<input type="time" class="otinp" id="wt-in" value="${d.workIn || ''}"></label>
-    <label class="leave-fld">ออก<input type="time" class="otinp" id="wt-out" data-otkind="sat" data-dayname="${isSun ? 'อาทิตย์' : 'เสาร์'}" value="${d.workOut || ''}" oninput="otFromTime(true)"></label>
-    <button class="preset-btn" onclick="otFromTime(true);return false" style="align-self:flex-end">↧ ใส่ OT</button>
-  </div>
-  <div class="ottotal" id="wt-calc"></div>
-  <div class="sat-presets" id="ot-presets">${otPresetButtons(true, !!d.nightShift)}</div>`;
+  <div class="dm-calc" id="wt-calc"></div>
+  <div class="dm-presets" id="ot-presets">${otPresetButtons(isRest, !!d.nightShift)}</div>`;
         }
         const order = d.isHoliday ? ["1", "1.5", "2", "3"] : ["1.5", "1", "2", "3"];
+        html += `<div class="dm-rates">`;
         for (const r of order) {
           const h = Number(d.ot[r]) || 0, pay = h * HOURLY * Number(r);
-          html += `<div class="otrow">
-        <span class="otlabel">${rinfo[r]}</span>
-        <input type="number" class="otinp" id="ot-${r}" value="${h || ''}" min="0" max="24" step="0.5" placeholder="0" oninput="updOT()">
-        <span class="otunit">h</span>
+          html += `<label class="dm-rate" title="${rinfo[r][1]}">
+        <span class="dm-rate-lbl">${r}×<small>${rinfo[r][0]}</small></span>
+        <input type="number" class="otinp" id="ot-${r}" value="${h || ''}" min="0" max="24" step="0.5" placeholder="0" inputmode="decimal" oninput="updOT()">
         <span class="otprev" id="op-${r}">${h > 0 ? '฿' + fmt(pay) : ''}</span>
-      </div>`;
+      </label>`;
         }
-        html += `<div class="ottotal" id="ot-tot"></div></div>`;
+        html += `</div>`;
         if (isPrev) html += `<div class="info-box">ℹ️ This day is from the previous calendar month but falls within ${MONTHS[M - 1]} ${Y}'s OT period.</div>`;
+        html += `</section>`;
       } else {
-        html += `<div class="info-box">This day is outside the OT period (25th prev – 24th curr). OT for this day belongs to next month's calculation.</div>`;
+        html += `<div class="info-box dm-outside">This day is outside the OT period (25th prev – 24th curr). OT for this day belongs to next month's calculation.</div>`;
       }
 
-      html += `<div class="note-sect">
+      html += `<div class="note-sect dm-note">
     <label class="note-label" for="day-note">📝 Note</label>
-    <textarea id="day-note" class="note-inp" placeholder="Add a note for this day…" rows="3">${d.note || ''}</textarea>
+    <textarea id="day-note" class="note-inp" placeholder="Add a note for this day…" rows="2">${d.note || ''}</textarea>
   </div>
-  <div class="mactions">
+  </div>
+  <div class="dm-foot">
+    <div class="dm-total" id="ot-tot"></div>
     <button class="btn btn-c" onclick="closeModal()">Cancel</button>
     <button class="btn btn-p" onclick="saveDay()">Save</button>
   </div>`;
@@ -187,6 +166,7 @@
         // Same hours either way; only the clock times on the buttons and the readout move
         const presets = document.getElementById('ot-presets');
         if (presets) presets.innerHTML = otPresetButtons(isSat || isSun, chkNight.checked);
+        updOT();
         otFromTime(false);
       });
 
@@ -222,14 +202,16 @@
         const t = (shiftEnd + h * 60) % (24 * 60);
         return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
       };
-      const btn = (h, args, sub) => `<button class="preset-btn" onclick="satPreset(${args});return false"><span>→${clockAt(h)}</span><small>${sub}</small></button>`;
+      const btn = (h, ot, sub) => `<button class="preset-btn" data-ot="${ot}" onclick="satPreset(${ot});return false"><span>${clockAt(h)}</span><small>${sub}</small></button>`;
       const hours = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5];
       const buttons = isRestDay
-        ? [btn(0, '9,0,0,0', '9h×1'), ...hours.map(h => btn(h, `9,0,0,${h}`, `9×1+${h}×3`))]
-        : hours.map(h => btn(h, `0,${h},0,0`, `${h}×1.5`));
-      return `<span class="preset-label">⚡ Quick:</span>
-    ${buttons.join('\n    ')}
-    <button class="preset-btn preset-clear" onclick="satPreset(0,0,0,0);return false">✕ Clear</button>`;
+        ? [btn(0, '9,0,0,0', '9 ชม.'), ...hours.map(h => btn(h, `9,0,0,${h}`, `9 + ${h}×3`))]
+        : hours.map(h => btn(h, `0,${h},0,0`, `${h} ชม.`));
+      return `<div class="dm-qhead">
+      <span class="preset-label">⚡ Quick · เวลาออกงาน</span>
+      <button class="dm-clear" onclick="satPreset(0,0,0,0);return false">✕ Clear</button>
+    </div>
+    <div class="dm-qgrid">${buttons.join('')}</div>`;
     }
 
     function satPreset(h1, h15, h2, h3) {
@@ -252,7 +234,13 @@
         if (pe) pe.textContent = h > 0 ? '฿' + fmt(pay) : '';
       }
       const te = document.getElementById('ot-tot');
-      if (te) te.textContent = total > 0 ? `OT subtotal: ฿${fmt(total)}` : '';
+      if (te) te.textContent = total > 0 ? `OT +฿${fmt(total)}` : '';
+      // Light up the preset these hours match, so a tap (or a typed value) shows its result
+      const cur = ["1", "1.5", "2", "3"].map(r => {
+        const el = document.getElementById(`ot-${r}`);
+        return el ? (parseFloat(el.value) || 0) : 0;
+      }).join(',');
+      document.querySelectorAll('#ot-presets [data-ot]').forEach(b => b.classList.toggle('active', b.dataset.ot === cur));
     }
 
     // OT hours past the 18:30 cutoff from a clock-out time. A normal day ends at 18:30;

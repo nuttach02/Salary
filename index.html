@@ -280,9 +280,12 @@
 
   <!-- Day Edit Modal -->
   <div class="mbg" id="mbg" onclick="bgClick(event)">
-    <div class="modal" id="modal">
+    <div class="modal day-modal" id="modal">
       <div class="mhdr">
-        <h3 id="mtitle">Edit Day</h3>
+        <div class="dm-title">
+          <h3 id="mtitle">Edit Day</h3>
+          <span class="mtype" id="mtype"></span>
+        </div>
         <button class="mcls" onclick="closeModal()">✕</button>
       </div>
       <div id="mcontent"></div>
