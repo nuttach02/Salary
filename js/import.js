@@ -155,7 +155,8 @@
     //  - Take Leave = Y, with swipe-in: partial leave from a late arrival — SAME HR rounding as the
     //      absent estimate: ceil(Latmin/30) × 0.5 with a 30-min grace (08:31→1h, 10:25→2.5h; ≤30→0), still worked.
     //  - Otherwise: a normal day; Latmin drives the existing late deduction.
-    function classifyImportRow(r) {
+    // night: the day is marked as a night shift, which moves the OT estimate's clock-out cutoffs.
+    function classifyImportRow(r, night = false) {
       const L = Number(r.latmin) || 0;
       const A = Number(r.absenthrs) || 0;
       const leaveY = r.leacod === 'Y';
@@ -175,17 +176,17 @@
       { const wi = hrTimeToHm(r.swipeIn); if (wi) wt.workIn = wi; const wo = hrTimeToHm(r.swipeOut); if (wo) wt.workOut = wo; }
       // OT estimate for days HR hasn't approved yet. When every approved-minute bucket is
       // zero, estimate OT from the clock-out (same 18:30 baseline / floor-to-0.5h as the
-      // modal): weekday → overflow at 1.5×; full Saturday rest-day (isFullSaturdayOut) → 9h
-      // at 1× + overflow at 3×. Approved days (any bucket > 0) keep HR's exact value
-      // untouched, and an earlier Saturday clock-out estimates nothing (null: no `ot` key),
+      // modal): weekday → overflow at 1.5×; full Saturday/Sunday rest day (isFullRestDayOut) →
+      // 9h at 1× + overflow at 3×. Approved days (any bucket > 0) keep HR's exact value
+      // untouched, and an earlier rest-day clock-out estimates nothing (null: no `ot` key),
       // so hours typed by hand survive. Idempotent across re-imports; reconciles once HR
       // approves (the diff then shows estimate→approved). Rides the existing `ot` patch key,
       // so the OT category toggle and diff handle it like any other OT.
       let estOt = ot;
       if (m.every(x => !(Number(x) > 0)) && wt.workOut) {
-        const overflow = otHoursFromClockOut(wt.workOut); // hours past 18:30, floored to 0.5
+        const overflow = otHoursFromClockOut(wt.workOut, night); // hours past the cutoff, floored to 0.5
         const dow = jsDate(r.ds).getDay();
-        if (dow === 6 && Number(r.holcod) === 2) estOt = isFullSaturdayOut(wt.workOut) ? { "1": 9, "1.5": 0, "2": 0, "3": overflow } : null;
+        if ((dow === 6 || dow === 0) && Number(r.holcod) === 2) estOt = isFullRestDayOut(wt.workOut, night) ? { "1": 9, "1.5": 0, "2": 0, "3": overflow } : null;
         else if (dow >= 1 && dow <= 5 && Number(r.holcod) !== 3) estOt = { ...ot, "1.5": overflow };
       }
       if (A > 0) {
@@ -245,7 +246,7 @@
         else if (patch.leaveHours === 0) { d.leaveStart = ''; d.leaveEnd = ''; }
       }
       // Set by the day modal / leave request only; the HR patch never carries these.
-      for (const k of ['leaveStart', 'leaveEnd', 'satAbsent', 'sunAbsent', 'note']) {
+      for (const k of ['leaveStart', 'leaveEnd', 'satAbsent', 'sunAbsent', 'nightShift', 'note']) {
         if (k in patch) d[k] = patch[k];
       }
       if ('leaveType' in patch) d.leaveType = patch.leaveType;
@@ -392,13 +393,13 @@
         monthData[key] = snap.exists ? snap.data() : { days: {} };
       }
       importDiff = rows.map(r => {
-        const patch = classifyImportRow(r);
         // Cache the current state in every doc the day lives in (current view first, so
         // the old→new shown matches the calendar). refreshImportDiff() then derives the
         // changed/changes for whatever categories are selected — no Firestore re-read.
         const keys = importTargetKeys(r.ds).slice().sort((a, b) => (b === curKey) - (a === curKey));
         const curByKey = {};
         keys.forEach(key => { curByKey[key] = ((monthData[key] || {}).days || {})[r.ds] || defDay(r.ds); });
+        const patch = classifyImportRow(r, keys.some(key => curByKey[key].nightShift));
         return { ds: r.ds, kind: patch.kind, patch, keys, curByKey, fpatch: patch, changes: [], changed: false };
       });
       refreshImportDiff();

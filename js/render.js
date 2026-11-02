@@ -15,7 +15,10 @@
     function bgClass(ds) {
       const d = gd(ds), dow = jsDate(ds).getDay();
       if (d.isHoliday) return 'bg-holiday';
-      if (dow === 0) return d.sunAbsent ? 'bg-sun-absent' : 'bg-sun';
+      if (dow === 0) {
+        if (d.worked) return 'bg-sun-worked';
+        return d.sunAbsent ? 'bg-sun-absent' : 'bg-sun';
+      }
       if (dow === 6) {
         if (d.worked) return 'bg-sat-worked';
         if (d.satAbsent) return 'bg-sat-absent';
@@ -58,7 +61,7 @@
           if (lines.length) otHtml = `<div class="ot-lines">${lines.join(' ')}</div>`;
         }
 
-        const hasTravelDot = !showOT && dow !== 0 && ds.startsWith(pfx) && d.worked && !d.isHoliday;
+        const hasTravelDot = !showOT && ds.startsWith(pfx) && d.worked && !d.isHoliday;
         const tdot = hasTravelDot ? `<div class="travel-dot" title="Travel +฿${TRAVEL}"></div>` : '';
         const otDot = hasOT
           ? `<div class="ot-dot" style="${hasTravelDot ? 'bottom:4px' : 'top:4px'}" title="OT recorded"></div>`
@@ -67,6 +70,7 @@
         const noteDot = hasNote ? `<div class="note-dot" title="${d.note.trim()}"></div>` : '';
 
         const holBadge = d.isHoliday ? `<div class="hol-badge">Holiday</div>` : '';
+        const nightBadge = d.nightShift ? `<div class="night-badge" title="กะกลางคืน Night shift">🌙</div>` : '';
         const dLeaveHrs = leaveHrsOf(d);
         const dLeaveType = leaveTypeOf(d);
         const leaveBadge = (!d.isHoliday && dow >= 1 && dow <= 5 && dLeaveHrs > 0)
@@ -83,7 +87,7 @@
         const isSunAbsent = dow === 0 && d.sunAbsent;
         html += `<div class="ccell ${bg}${isPrev ? ' prev' : ''}${isToday ? ' today' : ''}${hasOT ? ' has-ot' : ''}" onclick="cellClick('${ds}',event)" title="${ds}" style="animation-delay:${cellI * 13}ms">
       <div class="dnum${(!d.worked && !d.isHoliday && dow >= 1 && dow <= 5 || isSatAbsent || isSunAbsent) ? ' dim' : ''}">${dayNum}</div>
-      ${mNote}${holBadge}${leaveBadge}${lateBadge}${absentBadge}${lateAbsentBadge}${otHtml}${otDot}${tdot}${noteDot}
+      ${mNote}${holBadge}${nightBadge}${leaveBadge}${lateBadge}${absentBadge}${lateAbsentBadge}${otHtml}${otDot}${tdot}${noteDot}
     </div>`;
       }
       el.innerHTML = html;
@@ -107,6 +111,7 @@
     <div class="ssect">Income</div>
     <div class="srow"><span class="sl">Base Salary</span><span class="sv pos">+฿${fmt(c.BASE)}</span></div>
     <div class="srow"><span class="sl">Travel (${c.tDays}d × ฿${TRAVEL})</span><span class="sv pos">+฿${fmt(c.tPay)}</span></div>
+    ${c.nightDays > 0 ? `<div class="srow"><span class="sl">🌙 ค่ากะกลางคืน (${c.nightDays}d × ฿${NIGHT_ALLOWANCE})</span><span class="sv pos">+฿${fmt(c.nightPay)}</span></div>` : ''}
     ${OTHER_INCOMES.filter(oi => oi.amount > 0).map(oi =>
           `<div class="srow"><span class="sl">${oi.name || 'Other Income'}</span><span class="sv pos">+฿${fmt(oi.amount)}</span></div>`
         ).join('')}

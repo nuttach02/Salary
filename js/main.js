@@ -18,7 +18,7 @@
     // ── KEYBOARD ───────────────────────────────────────────────────────────────
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
-        closeModal(); closeSettings(); closePicker(); closeLeave(); closeImport();
+        closeModal(); closeSettings(); closePicker(); closeLeave(); closeShift(); closeImport();
         if (document.getElementById('year-screen').style.display !== 'none') closeYearView();
       }
     });
@@ -92,7 +92,7 @@
     document.addEventListener('touchend', e => {
       const dx = e.changedTouches[0].clientX - _swipeX;
       const dy = e.changedTouches[0].clientY - _swipeY;
-      const anyOpen = ['mbg', 'setbg', 'leavebg', 'importbg'].some(id => document.getElementById(id).classList.contains('open'));
+      const anyOpen = ['mbg', 'setbg', 'leavebg', 'shiftbg', 'importbg'].some(id => document.getElementById(id).classList.contains('open'));
       if (Math.abs(dx) > 80 && Math.abs(dx) > Math.abs(dy) * 1.5 && !anyOpen)
         changeMonth(dx < 0 ? 1 : -1);
     }, { passive: true });

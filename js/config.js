@@ -21,6 +21,7 @@
     let HOURLY = BASE / 30 / 9;
     let OTHER_INCOMES = [];
     let OTHER_DEDUCTIONS = [];
+    const NIGHT_ALLOWANCE = 50; // per night shift attended
 
     const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'];

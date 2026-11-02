@@ -36,7 +36,7 @@ Load order and responsibilities:
 | `calc.js` | date helpers (`otDates`/`attDates`/`allDates`/`fd`/`jsDate`), `calc()`, `fmt` |
 | `render.js` | `renderAll` → `renderGrid` (×2) + `renderSummary` |
 | `modal.js` | per-day edit modal (OT / leave / absent / lateness) |
-| `leave.js` | bulk leave-request modal |
+| `leave.js` | bulk leave-request and night-shift range modals |
 | `import.js` | HR attendance HTML import pipeline + the external-page `postMessage` bridge |
 | `main.js` | tabs, month nav, keyboard/touch/swipe, animations, month picker, `onAuthStateChanged` |
 
@@ -52,7 +52,7 @@ Load order and responsibilities:
 **Firestore layout (per user):**
 - `users/{uid}` — a `settings` field (`base`, `travel`, `ssf`, `otherIncomes[]`, `otherDeductions[]`).
 - `users/{uid}/months/{YYYY_MM}` — one doc per month (key from `monthKey()`), holding `days` (map keyed by `YYYY-MM-DD`). Each day is shaped by `defDay()`:
-  `{ worked, isHoliday, satAbsent, sunAbsent, leave, leaveHours, leaveStart, leaveEnd, absentHours, ot:{"1","1.5","2","3"}, lateMin, note }`.
+  `{ worked, isHoliday, nightShift, satAbsent, sunAbsent, leave, leaveHours, leaveStart, leaveEnd, absentHours, ot:{"1","1.5","2","3"}, lateMin, note }`.
   Fields are read defensively (`Number(x)||0`), so older docs missing newer fields still work.
 
 **Global mutable state** (`config.js`): `Y`/`M` (current view), `mdata` (loaded month doc), `editDate` (day open in modal), and salary constants `BASE`/`TRAVEL`/`SSF`/`HOURLY`/`OTHER_INCOMES`/`OTHER_DEDUCTIONS` (overwritten by `applySettings`).
@@ -62,14 +62,14 @@ Load order and responsibilities:
 ## Domain logic (read `calc()` + the date helpers before changing money math)
 
 - **Two date ranges per month.** The **OT period** = **25th of prev month → 24th of current** (`otDates`); drives OT pay and travel. **Attendance** = plain calendar month 1st–last (`attDates`); drives absence, lateness, leave, absent-hours totals. The two calendars (`#pane-ot`, `#pane-att`) render these ranges; `allDates()` is their union (seeds `defDay`). `calc()` sums attendance-scoped figures over `attDates` filtered by month prefix, and OT/travel over `otDates`.
-- **OT rates** are multipliers on `HOURLY = BASE/30/9`: `1.5×` weekday OT; `1×/2×/3×` holiday/rest-day work (the modal only exposes 1.5× on weekdays, 1×/2×/3× on holidays/Saturdays).
-- **Travel** (`TRAVEL`/day): OT-period days that are worked, non-Sunday, non-holiday.
+- **OT rates** are multipliers on `HOURLY = BASE/30/9`: `1.5×` weekday OT; `1×/2×/3×` holiday/rest-day work (the modal's presets use 1.5× on weekdays and 1×/3× on Saturdays/Sundays; all four rates stay editable).
+- **Travel** (`TRAVEL`/day): OT-period days that are worked, non-holiday. Saturdays and Sundays default to not worked, so they only earn it once marked worked (modal toggle, or an HR swipe on import).
+- **Night shift** (`nightShift`, per day, set in the day modal or the range modal): 20:00–06:00, belonging to the date it starts. OT estimates count from 06:30 next morning instead of 18:30 (full rest day from 06:00 instead of 18:00); rates are unchanged. Pays `NIGHT_ALLOWANCE` per OT-period night attended (`worked` non-holiday, or any recorded OT). Import never sets it: the only HR shift code seen so far is `D8`, so it's marked by hand and import reads it for the estimate.
 - **Absence**: daily rate `BASE/30`. A weekday is absent if not worked, not holiday, not on leave. Sat/Sun only deduct when explicitly flagged (`satAbsent`/`sunAbsent`).
 - **Lateness**: `lateMin` per day deducts `lateMin × (BASE/30/9/60)` (per-minute). Summed over the attendance month.
 - **Leave is hour-based** (`leaveHours`, 0–9; `leaveHrsOf()` treats legacy `leave:true` as 9h). Leave keeps full salary and is never absent. A **full day (9h) ⇒ `worked:false`** (no travel); a **partial leave (<9h) stays `worked:true`** (travel paid) — i.e. leave and worked are *not* mutually exclusive anymore. The Leave Request modal bulk-applies full-day leave across a range.
 - **Absent hours** (`absentHours`) is a **record-only** figure (badge + summary), mirroring leave hours — it does **not** itself deduct; the deduction comes from `lateMin` / the full-day `worked:false` path. An HR import of a full-day absence (`Absenthrs≥9`, no swipe) takes that path: `worked:false`, `lateMin:0`.
-- **Saturday OT estimate** (HR not approved yet): clock-out from 18:00 = 9h at 1× plus overflow past 18:30 at 3×; earlier estimates nothing. `isFullSaturdayOut()` is shared by the modal and `classifyImportRow`.
-
+- **Saturday/Sunday OT estimate** (HR not approved yet): clock-out from 18:00 = 9h at 1× plus overflow past 18:30 at 3×; earlier estimates nothing. `isFullRestDayOut()` is shared by the modal and `classifyImportRow`.
 ## The dual-doc storage gotcha (most common source of bugs)
 
 A day on the **25th–end** of month M is stored in **two independent docs**: M's own doc (its calendar/attendance month) *and* M+1's doc (M+1's OT period renders it). `calc()` filters by month-prefix (attendance) and `otDates` range (OT), so the duplicate **never double-counts**. Every writer keeps both copies in step: `saveDay` mirrors only the fields the edit changed (`mirrorDayEdit`), and the leave request and import write both docs (`importTargetKeys`). Copies can still differ in data written before this, so any code that reads one copy must consider the other. Note OT is OT-period-scoped, so a day≥25's OT *belongs to* M+1's doc, not M's.

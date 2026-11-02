@@ -28,12 +28,14 @@
     </div>`;
       }
 
-      if (isWkd || isSat) {
-        html += `<div class="trow" id="wrow"${d.isHoliday ? ' style="display:none"' : ''}>
-      <div><div class="tl">✅ Worked today</div><div class="td">${isWkd ? `Mon–Fri regular hours → +฿${TRAVEL} travel allowance` : `Mark as worked this Saturday → +฿${TRAVEL} travel allowance`}</div></div>
+      html += `<div class="trow" id="wrow"${d.isHoliday ? ' style="display:none"' : ''}>
+      <div><div class="tl">✅ Worked today</div><div class="td">${isWkd ? `Mon–Fri regular hours → +฿${TRAVEL} travel allowance` : `Mark as worked this ${isSun ? 'Sunday' : 'Saturday'} → +฿${TRAVEL} travel allowance`}</div></div>
       <label class="sw"><input type="checkbox" id="chk-wrk" ${d.worked ? 'checked' : ''}><span class="sw-sl"></span></label>
+    </div>
+    <div class="trow" id="nrow">
+      <div><div class="tl">🌙 กะกลางคืน (Night shift)</div><div class="td">20:00–06:00, OT หลัง 06:30 → +฿${NIGHT_ALLOWANCE} เมื่อมาทำงาน</div></div>
+      <label class="sw"><input type="checkbox" id="chk-night" ${d.nightShift ? 'checked' : ''}><span class="sw-sl"></span></label>
     </div>`;
-      }
 
       if (isWkd) {
         const lh = leaveHrsOf(d);
@@ -99,7 +101,14 @@
     </div>`;
       }
 
-      if (inOT && !isSun) {
+      if (isSun) {
+        html += `<div class="trow">
+      <div><div class="tl">❌ Absent (deduct salary)</div><div class="td">Mark this Sunday as an absence — daily rate will be deducted</div></div>
+      <label class="sw"><input type="checkbox" id="chk-sun-absent" ${d.sunAbsent ? 'checked' : ''}><span class="sw-sl"></span></label>
+    </div>`;
+      }
+
+      if (inOT) {
         const rinfo = { "1.5": "1.5× Weekday OT", "1": "1× Holiday pay", "2": "2× Holiday OT", "3": "3× Holiday OT" };
         html += `<div class="otsect"><h4>⏱ OT Hours</h4>`;
         if (isWkd && !d.isHoliday) {
@@ -112,39 +121,18 @@
     <button class="preset-btn" onclick="otFromTime(true);return false" style="align-self:flex-end">↧ ใส่ OT</button>
   </div>
   <div class="ottotal" id="wt-calc"></div>
-  <div class="sat-presets">
-    <span class="preset-label">⚡ Quick:</span>
-    <button class="preset-btn" onclick="satPreset(0,1,0,0);return false"><span>→19:30</span><small>1×1.5</small></button>
-    <button class="preset-btn" onclick="satPreset(0,1.5,0,0);return false"><span>→20:00</span><small>1.5×1.5</small></button>
-    <button class="preset-btn" onclick="satPreset(0,2,0,0);return false"><span>→20:30</span><small>2×1.5</small></button>
-    <button class="preset-btn" onclick="satPreset(0,2.5,0,0);return false"><span>→21:00</span><small>2.5×1.5</small></button>
-    <button class="preset-btn" onclick="satPreset(0,3,0,0);return false"><span>→21:30</span><small>3×1.5</small></button>
-    <button class="preset-btn" onclick="satPreset(0,3.5,0,0);return false"><span>→22:00</span><small>3.5×1.5</small></button>
-    <button class="preset-btn" onclick="satPreset(0,4,0,0);return false"><span>→22:30</span><small>4×1.5</small></button>
-    <button class="preset-btn preset-clear" onclick="satPreset(0,0,0,0);return false">✕ Clear</button>
-  </div>`;
-        } else if (isSat && !d.isHoliday) {
+  <div class="sat-presets" id="ot-presets">${otPresetButtons(false, !!d.nightShift)}</div>`;
+        } else if ((isSat || isSun) && !d.isHoliday) {
           html += `<div class="sat-presets" style="margin-bottom:6px">
-    <span class="preset-label">🕐 คำนวณจากเวลาออก-เข้างาน (วันเสาร์ 1× + 3×)</span>
+    <span class="preset-label">🕐 คำนวณจากเวลาออก-เข้างาน (วัน${isSun ? 'อาทิตย์' : 'เสาร์'} 1× + 3×)</span>
   </div>
   <div class="leave-times">
     <label class="leave-fld">เข้า<input type="time" class="otinp" id="wt-in" value="${d.workIn || ''}"></label>
-    <label class="leave-fld">ออก<input type="time" class="otinp" id="wt-out" data-otkind="sat" value="${d.workOut || ''}" oninput="otFromTime(true)"></label>
+    <label class="leave-fld">ออก<input type="time" class="otinp" id="wt-out" data-otkind="sat" data-dayname="${isSun ? 'อาทิตย์' : 'เสาร์'}" value="${d.workOut || ''}" oninput="otFromTime(true)"></label>
     <button class="preset-btn" onclick="otFromTime(true);return false" style="align-self:flex-end">↧ ใส่ OT</button>
   </div>
   <div class="ottotal" id="wt-calc"></div>
-  <div class="sat-presets">
-    <span class="preset-label">⚡ Quick:</span>
-    <button class="preset-btn" onclick="satPreset(9,0,0,0);return false"><span>→18:30</span><small>9h×1</small></button>
-    <button class="preset-btn" onclick="satPreset(9,0,0,1);return false"><span>→19:30</span><small>9×1+1×3</small></button>
-    <button class="preset-btn" onclick="satPreset(9,0,0,1.5);return false"><span>→20:00</span><small>9×1+1.5×3</small></button>
-    <button class="preset-btn" onclick="satPreset(9,0,0,2);return false"><span>→20:30</span><small>9×1+2×3</small></button>
-    <button class="preset-btn" onclick="satPreset(9,0,0,2.5);return false"><span>→21:00</span><small>9×1+2.5×3</small></button>
-    <button class="preset-btn" onclick="satPreset(9,0,0,3);return false"><span>→21:30</span><small>9×1+3×3</small></button>
-    <button class="preset-btn" onclick="satPreset(9,0,0,3.5);return false"><span>→22:00</span><small>9×1+3.5×3</small></button>
-    <button class="preset-btn" onclick="satPreset(9,0,0,4);return false"><span>→22:30</span><small>9×1+4×3</small></button>
-    <button class="preset-btn preset-clear" onclick="satPreset(0,0,0,0);return false">✕ Clear</button>
-  </div>`;
+  <div class="sat-presets" id="ot-presets">${otPresetButtons(true, !!d.nightShift)}</div>`;
         }
         const order = d.isHoliday ? ["1", "1.5", "2", "3"] : ["1.5", "1", "2", "3"];
         for (const r of order) {
@@ -158,13 +146,7 @@
         }
         html += `<div class="ottotal" id="ot-tot"></div></div>`;
         if (isPrev) html += `<div class="info-box">ℹ️ This day is from the previous calendar month but falls within ${MONTHS[M - 1]} ${Y}'s OT period.</div>`;
-      } else if (isSun) {
-        html += `<div class="trow">
-      <div><div class="tl">❌ Absent (deduct salary)</div><div class="td">Mark this Sunday as an absence — daily rate will be deducted</div></div>
-      <label class="sw"><input type="checkbox" id="chk-sun-absent" ${d.sunAbsent ? 'checked' : ''}><span class="sw-sl"></span></label>
-    </div>
-    <div class="info-box">Sundays have no travel allowance and no OT.</div>`;
-      } else if (!inOT) {
+      } else {
         html += `<div class="info-box">This day is outside the OT period (25th prev – 24th curr). OT for this day belongs to next month's calculation.</div>`;
       }
 
@@ -200,6 +182,14 @@
         updOT();
       });
 
+      const chkNight = document.getElementById('chk-night');
+      if (chkNight) chkNight.addEventListener('change', () => {
+        // Same hours either way; only the clock times on the buttons and the readout move
+        const presets = document.getElementById('ot-presets');
+        if (presets) presets.innerHTML = otPresetButtons(isSat || isSun, chkNight.checked);
+        otFromTime(false);
+      });
+
       const chkWrk = document.getElementById('chk-wrk');
       const chkLeave = document.getElementById('chk-leave');
       if (chkLeave) chkLeave.addEventListener('change', () => {
@@ -223,6 +213,23 @@
       updLeave();
       updAbsent();
       otFromTime(false);
+    }
+
+    // Quick-fill buttons: OT hours labelled with the clock-out that earns them on this shift.
+    function otPresetButtons(isRestDay, night) {
+      const shiftEnd = (night ? 6 : 18) * 60 + 30;
+      const clockAt = h => {
+        const t = (shiftEnd + h * 60) % (24 * 60);
+        return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+      };
+      const btn = (h, args, sub) => `<button class="preset-btn" onclick="satPreset(${args});return false"><span>→${clockAt(h)}</span><small>${sub}</small></button>`;
+      const hours = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5];
+      const buttons = isRestDay
+        ? [btn(0, '9,0,0,0', '9h×1'), ...hours.map(h => btn(h, `9,0,0,${h}`, `9×1+${h}×3`))]
+        : hours.map(h => btn(h, `0,${h},0,0`, `${h}×1.5`));
+      return `<span class="preset-label">⚡ Quick:</span>
+    ${buttons.join('\n    ')}
+    <button class="preset-btn preset-clear" onclick="satPreset(0,0,0,0);return false">✕ Clear</button>`;
     }
 
     function satPreset(h1, h15, h2, h3) {
@@ -255,28 +262,37 @@
     // recorded but NOT used: arriving late is a separate lateMin deduction and must not
     // reduce OT. This is a provisional estimate for when HR hasn't approved OT yet —
     // an HR import later overwrites it with the real approved minutes.
-    function otHoursFromClockOut(outStr) {
-      if (!outStr || typeof outStr !== 'string') return 0;
-      const m = outStr.match(/^(\d{1,2}):(\d{2})$/);
-      if (!m) return 0;
-      const out = (+m[1]) * 60 + (+m[2]);
-      const base = 18 * 60 + 30; // normal day ends 18:30
+    // A night shift (20:00–06:00) runs the same way from a 06:30 cutoff the next morning.
+    function otHoursFromClockOut(outStr, night = false) {
+      const out = clockOutMinutes(outStr, night);
+      if (out === null) return 0;
+      const base = (night ? 30 : 18) * 60 + 30; // shift ends 18:30, or 06:30 next morning
       if (out <= base) return 0;
       return Math.floor((out - base) / 30) * 0.5;
     }
 
-    // A Saturday clock-out from 18:00 counts as a full day (9h at 1×). Earlier clock-outs
-    // get no estimate — the OT stays whatever was typed until HR approves. Shared with
-    // classifyImportRow so both entry paths agree.
-    function isFullSaturdayOut(outStr) {
+    // Clock-out as minutes from midnight on the day the shift started. A time before the
+    // cutoff is the next day: before 06:00 on a day shift (00:00 = 24:00), before 18:00 on
+    // a night shift (which starts at 20:00).
+    function clockOutMinutes(outStr, night) {
       const m = String(outStr || '').match(/^(\d{1,2}):(\d{2})$/);
-      return !!m && (+m[1]) * 60 + (+m[2]) >= 18 * 60;
+      if (!m) return null;
+      const t = (+m[1]) * 60 + (+m[2]);
+      return t < (night ? 18 : 6) * 60 ? t + 24 * 60 : t;
+    }
+
+    // A Saturday or Sunday clock-out from 18:00 (06:00 next morning on a night shift) counts
+    // as a full day (9h at 1×). Earlier clock-outs get no estimate — the OT stays whatever
+    // was typed until HR approves. Shared with classifyImportRow so both entry paths agree.
+    function isFullRestDayOut(outStr, night = false) {
+      const out = clockOutMinutes(outStr, night);
+      return out !== null && out >= (night ? 30 : 18) * 60;
     }
 
     // apply=true (on time-input): fill the OT fields from the clock-out estimate.
     // apply=false (on modal open): only refresh the readout — never overwrite an OT
     // value that may have come from an HR import.
-    // kind (data-otkind on the clock-out input): 'sat' = working a rest-day Saturday
+    // kind (data-otkind on the clock-out input): 'sat' = working a rest-day Saturday or Sunday
     // (9h base at 1× + overflow at 3×, mirrors satPreset(9,0,0,X)); else weekday 1.5×.
     function otFromTime(apply) {
       const outEl = document.getElementById('wt-out');
@@ -284,12 +300,15 @@
       if (!outEl) return;
       const outV = outEl.value;
       if (!outV) { if (calcEl) calcEl.textContent = ''; return; }
-      const h = otHoursFromClockOut(outV); // hours past 18:30
+      const nightEl = document.getElementById('chk-night');
+      const night = !!(nightEl && nightEl.checked);
+      const h = otHoursFromClockOut(outV, night); // hours past the shift's cutoff
       const kind = outEl.dataset.otkind || 'wkd';
       if (kind === 'sat') {
-        // Full Saturday = 9h at 1× plus overflow at 3×; an earlier clock-out only clears
+        // Full rest day = 9h at 1× plus overflow at 3×; an earlier clock-out only clears
         // what this field itself filled in (e.g. while correcting a typo), never typed OT.
-        const full = isFullSaturdayOut(outV);
+        const full = isFullRestDayOut(outV, night);
+        const dayName = outEl.dataset.dayname || 'เสาร์';
         if (apply) {
           const f1 = document.getElementById('ot-1');
           const f3 = document.getElementById('ot-3');
@@ -306,10 +325,10 @@
           }
         }
         if (calcEl) calcEl.textContent = !full
-          ? `ออกก่อน 18:00 — ไม่ประมาณ OT กรอกเองหรือรอ HR อนุมัติ`
+          ? `ออกก่อน ${night ? '06:00' : '18:00'} — ไม่ประมาณ OT กรอกเองหรือรอ HR อนุมัติ`
           : h > 0
-          ? `≈ 9 ชม. (1×) + OT ${h} ชม. (3×) — ถือว่าทำเต็มวันเสาร์ ประมาณการก่อน HR อนุมัติ`
-          : `≈ 9 ชม. (1×) ทำงานวันเสาร์ — ประมาณการก่อน HR อนุมัติ`;
+          ? `≈ 9 ชม. (1×) + OT ${h} ชม. (3×) — ถือว่าทำเต็มวัน${dayName} ประมาณการก่อน HR อนุมัติ`
+          : `≈ 9 ชม. (1×) ทำงานวัน${dayName} — ประมาณการก่อน HR อนุมัติ`;
       } else {
         if (apply) {
           const f15 = document.getElementById('ot-1.5');
@@ -318,7 +337,7 @@
         }
         if (calcEl) calcEl.textContent = h > 0
           ? `≈ OT ${h} ชม. (1.5×) — ประมาณการก่อน HR อนุมัติ จะถูกแทนที่เมื่อ import`
-          : `ออกงานไม่เกิน 18:30 — ไม่มี OT`;
+          : `ออกงานไม่เกิน ${night ? '06:30' : '18:30'} — ไม่มี OT`;
       }
     }
 
@@ -439,6 +458,7 @@
       if (!editDate) return;
       const d = gd(editDate);
       const ch = document.getElementById('chk-hol'); if (ch) d.isHoliday = ch.checked;
+      const cn = document.getElementById('chk-night'); if (cn) d.nightShift = cn.checked;
       // Leave (weekday only): hours are the source of truth; a full day (9h) means not worked.
       const lhEl = document.getElementById('leave-hours');
       if (lhEl) {

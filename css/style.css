@@ -1050,6 +1050,11 @@
       border-left: 3px solid var(--badge-sat-color)
     }
 
+    .bg-sun-worked {
+      background: var(--sat-worked-bg);
+      border-left: 3px solid var(--badge-sun-color)
+    }
+
     .bg-sun-absent {
       background: var(--sun-bg);
       border-left: 3px solid var(--badge-sun-color)
@@ -1089,6 +1094,13 @@
       color: var(--hol-text);
       border-radius: 3px;
       padding: 1px 4px;
+      line-height: 1.4;
+      margin-top: 2px;
+      display: inline-block
+    }
+
+    .night-badge {
+      font-size: .58rem;
       line-height: 1.4;
       margin-top: 2px;
       display: inline-block

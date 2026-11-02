@@ -219,6 +219,10 @@
                 <div class="leg-dot" style="background:var(--red-lt)"></div>Sunday
               </div>
               <div class="leg-item">
+                <div class="leg-dot" style="background:var(--sat-worked-bg);border-left:3px solid var(--badge-sun-color)">
+                </div>Sun worked
+              </div>
+              <div class="leg-item">
                 <div class="leg-dot" style="background:var(--yellow-lt)"></div>Holiday
               </div>
               <div class="leg-item">
@@ -233,7 +237,9 @@
                 <span class="late-badge" style="margin:0">⏰m</span>Late (deducted)
               </div>
             </div>
-            <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+            <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px">
+              <button class="btn btn-c" onclick="openShiftModal()" style="font-size:.78rem;padding:5px 14px">🌙 Night
+                Shift</button>
               <button class="btn btn-p" onclick="openLeaveModal()" style="font-size:.78rem;padding:5px 14px">🏖️ Leave
                 Request</button>
             </div>
@@ -340,6 +346,42 @@
       <div class="mactions">
         <button class="btn btn-c" onclick="closeSettings()">Cancel</button>
         <button class="btn btn-p" onclick="saveSettings()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Night Shift Range Modal -->
+  <div class="mbg" id="shiftbg" onclick="shiftBgClick(event)">
+    <div class="modal" style="width:360px">
+      <div class="mhdr">
+        <h3>🌙 Night Shift</h3>
+        <button class="mcls" onclick="closeShift()">✕</button>
+      </div>
+      <div class="otsect" style="margin-top:6px">
+        <h4>ช่วงวันที่</h4>
+        <div class="otrow">
+          <span class="otlabel">Start Date</span>
+          <input type="date" class="otinp" id="shift-start" style="max-width:160px">
+        </div>
+        <div class="otrow">
+          <span class="otlabel">End Date</span>
+          <input type="date" class="otinp" id="shift-end" style="max-width:160px">
+        </div>
+        <div class="otrow">
+          <span class="otlabel">Shift</span>
+          <select class="otinp" id="shift-kind" style="max-width:160px">
+            <option value="night">🌙 กะกลางคืน Night</option>
+            <option value="day">☀️ กะกลางวัน Day</option>
+          </select>
+        </div>
+      </div>
+      <div class="info-box" style="margin-top:10px">
+        ℹ️ ตั้งกะให้ทุกวันในช่วง รวมเสาร์-อาทิตย์และวันหยุด · ใช้วันที่เริ่มเข้ากะเป็นหลัก · กะกลางคืน 20:00–06:00, OT
+        หลัง 06:30, ค่ากะ ฿50 ต่อคืนที่มาทำงาน
+      </div>
+      <div class="mactions">
+        <button class="btn btn-c" onclick="closeShift()">Cancel</button>
+        <button class="btn btn-p" onclick="applyShift()">Apply</button>
       </div>
     </div>
   </div>

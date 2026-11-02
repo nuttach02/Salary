@@ -74,22 +74,26 @@
         }
       }
 
-      // Travel: OT period (25th prev – 24th curr), Mon–Sat worked non-holiday
+      // Travel: OT period (25th prev – 24th curr), worked non-holiday.
+      // Night allowance: same period, for a night shift attended. Holidays default to worked,
+      // so there only recorded OT shows attendance.
+      let nightDays = 0;
       for (const ds of od) {
-        const dow = jsDate(ds).getDay();
         const d = gd(ds);
-        if (dow !== 0 && d.worked && !d.isHoliday) tDays++;
+        if (d.worked && !d.isHoliday) tDays++;
+        if (d.nightShift && ((d.worked && !d.isHoliday) || otTotal(d.ot) > 0)) nightDays++;
       }
 
       const dailyRate = BASE / 30;
       const absDeduction = absentDays * dailyRate;
       const tPay = tDays * TRAVEL;
+      const nightPay = nightDays * NIGHT_ALLOWANCE;
       const otherIncomePay = OTHER_INCOMES.reduce((s, oi) => s + (Number(oi.amount) || 0), 0);
-      const gross = BASE - absDeduction + tPay + otPay + otherIncomePay;
+      const gross = BASE - absDeduction + tPay + nightPay + otPay + otherIncomePay;
       const lateDeduction = totalLateMin * (BASE / 30 / 9 / 60);
       const otherDeductionsPay = OTHER_DEDUCTIONS.reduce((s, od) => s + (Number(od.amount) || 0), 0);
       const net = gross - SSF - lateDeduction - otherDeductionsPay;
-      return { BASE, absDeduction, absentDays, tPay, tDays, otPay, otR, otHrs, leaveHrs, leaveDays, sickHrs, sickDays, personalHrs, personalDays, absentHrs, absentHrsDays, lateAbsentHrs, lateAbsentDays, SSF, totalLateMin, lateDeduction, otherIncomePay, otherDeductionsPay, gross, net };
+      return { BASE, absDeduction, absentDays, tPay, tDays, nightPay, nightDays, otPay, otR, otHrs, leaveHrs, leaveDays, sickHrs, sickDays, personalHrs, personalDays, absentHrs, absentHrsDays, lateAbsentHrs, lateAbsentDays, SSF, totalLateMin, lateDeduction, otherIncomePay, otherDeductionsPay, gross, net };
     }
 
     // ── FORMAT ─────────────────────────────────────────────────────────────────

@@ -150,7 +150,7 @@
 
     function defDay(ds) {
       const dow = jsDate(ds).getDay();
-      return { worked: dow >= 1 && dow <= 5, isHoliday: false, satAbsent: false, sunAbsent: false, leave: false, leaveHours: 0, leaveType: 'sick', leaveStart: '', leaveEnd: '', absentHours: 0, workIn: '', workOut: '', ot: { "1": 0, "1.5": 0, "2": 0, "3": 0 }, lateMin: 0, note: '' };
+      return { worked: dow >= 1 && dow <= 5, isHoliday: false, nightShift: false, satAbsent: false, sunAbsent: false, leave: false, leaveHours: 0, leaveType: 'sick', leaveStart: '', leaveEnd: '', absentHours: 0, workIn: '', workOut: '', ot: { "1": 0, "1.5": 0, "2": 0, "3": 0 }, lateMin: 0, note: '' };
     }
 
     function gd(ds) {
