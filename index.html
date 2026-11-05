@@ -140,6 +140,10 @@
                 <span class="late-badge" style="margin:0">⏰m</span>Late (deducted)
               </div>
             </div>
+            <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px">
+              <button class="btn btn-d" onclick="openResetOt()" style="font-size:.78rem;padding:5px 14px">🗑️ Reset OT
+                เดือนนี้</button>
+            </div>
             <div class="cal-grid" id="ot-grid"></div>
             <div class="desk-only" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:12px 0 6px">
               <button class="btn btn-p" onclick="window.open('https://hr.rsquanta.com/HROldPages/Attn/Modify_Attandence_assistant_min.aspx?Site=QMB&amp;Flag=4&amp;languageType=en-US','_blank')" style="font-size:.78rem;padding:5px 14px">🌐 เปิดเว็บบริษัท</button>
@@ -434,6 +438,17 @@
         <button class="btn btn-c" onclick="closeLeave()">Cancel</button>
         <button class="btn btn-p" onclick="applyLeave()">Apply Leave</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Reset OT (displayed month) Modal -->
+  <div class="mbg" id="resetotbg" onclick="resetOtBgClick(event)">
+    <div class="modal" style="width:360px">
+      <div class="mhdr">
+        <h3>🗑️ Reset OT</h3>
+        <button class="mcls" onclick="closeResetOt()">✕</button>
+      </div>
+      <div id="resetot-body"></div>
     </div>
   </div>
 

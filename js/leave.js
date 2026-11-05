@@ -110,3 +110,75 @@
       }
     }
 
+    // ── RESET OT (displayed month only) ────────────────────────────────────────
+    // Clears the OT hours of every day in the viewed month's OT period (25th of the
+    // previous month → 24th), nothing else: worked/leave/late/holiday stay as they are,
+    // and days 25th–end of this month keep their OT (it belongs to next month's period).
+    // Days 25th+ of the previous month also have a copy in that month's doc, which is
+    // cleared too so both copies stay in step. (OT_RATES / otTotal live in import.js.)
+    const ZERO_OT = () => ({ "1": 0, "1.5": 0, "2": 0, "3": 0 });
+
+    function resetOtDays() {
+      return otDates(Y, M).filter(ds => otTotal((mdata.days[ds] || {}).ot) > 0);
+    }
+
+    function openResetOt() {
+      if (!monthReady()) { showToast('กำลังโหลดเดือน… ลองใหม่อีกครั้ง'); return; }
+      const od = otDates(Y, M);
+      const days = resetOtDays();
+      const byRate = {};
+      OT_RATES.forEach(r => { byRate[r] = days.reduce((s, ds) => s + (Number(mdata.days[ds].ot[r]) || 0), 0); });
+      const total = OT_RATES.reduce((s, r) => s + byRate[r], 0);
+      const h = n => +n.toFixed(2);
+      const monthName = new Date(Y, M - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      document.getElementById('resetot-body').innerHTML = `
+      <div class="otsect" style="margin-top:6px"><h4>${monthName}</h4>
+        <div class="srow"><span class="sl">รอบ OT</span><span class="sv">${od[0]} → ${od[od.length - 1]}</span></div>
+        <div class="srow"><span class="sl">วันที่มี OT</span><span class="sv"><strong>${days.length}</strong> วัน</span></div>
+        <div class="srow"><span class="sl">ชั่วโมง OT</span><span class="sv">${OT_RATES.filter(r => byRate[r] > 0).map(r => `${r}× ${h(byRate[r])}h`).join(' · ') || '—'}</span></div>
+        <div class="srow"><span class="sl">รวม</span><span class="sv"><strong>${h(total)}</strong> ชม.</span></div>
+      </div>
+      ${days.length
+          ? `<div class="info-box" style="margin-top:10px;background:var(--red-lt)">⚠️ OT ทุกวันในรอบนี้จะถูกตั้งเป็น 0 — ย้อนกลับไม่ได้ (import จากบริษัทใหม่ได้) · วันทำงาน/ลา/สาย/วันหยุด ไม่ถูกแตะ</div>`
+          : `<div class="info-box" style="margin-top:10px">ไม่มี OT ในรอบนี้ — ไม่มีอะไรต้องล้าง</div>`}
+      <div class="mactions">
+        <button class="btn btn-c" onclick="closeResetOt()">ยกเลิก</button>
+        <button class="btn btn-d" id="resetot-apply-btn" onclick="applyResetOt()" ${days.length ? '' : 'disabled'}>ล้าง OT ${days.length} วัน</button>
+      </div>`;
+      document.getElementById('resetotbg').classList.add('open');
+    }
+
+    function closeResetOt() { document.getElementById('resetotbg').classList.remove('open'); }
+    function resetOtBgClick(e) { if (e.target === document.getElementById('resetotbg')) closeResetOt(); }
+
+    async function applyResetOt() {
+      if (!monthReady()) { showToast('กำลังโหลดเดือน… ลองใหม่อีกครั้ง'); return; }
+      const key = monthKey(Y, M);
+      const btn = document.getElementById('resetot-apply-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'กำลังล้าง…'; }
+      const prevDs = otDates(Y, M).filter(ds => !ds.startsWith(key.replace('_', '-')));
+      const prevKey = monthKey(...prevDs[0].split('-').slice(0, 2).map(Number));
+      let prevRef = null, prevData = null;
+      try {
+        prevRef = userMonths().doc(prevKey);
+        const snap = await prevRef.get();
+        if (snap.exists) prevData = snap.data();
+      } catch (e) {
+        if (btn) { btn.disabled = false; btn.textContent = 'ลองอีกครั้ง'; }
+        showToast('โหลดเดือนก่อนหน้าไม่สำเร็จ: ' + ((e && e.message) || e), 5000);
+        return;
+      }
+      if (!monthReady() || monthKey(Y, M) !== key) { closeResetOt(); showToast('เดือนเปลี่ยนแล้ว — ยังไม่ได้ล้าง OT'); return; }
+
+      const days = resetOtDays();
+      days.forEach(ds => { mdata.days[ds].ot = ZERO_OT(); });
+      const others = [];
+      if (prevData && prevData.days) {
+        const hit = prevDs.filter(ds => otTotal((prevData.days[ds] || {}).ot) > 0);
+        hit.forEach(ds => { prevData.days[ds].ot = ZERO_OT(); });
+        if (hit.length) others.push(prevRef.set(prevData));
+      }
+      closeResetOt();
+      renderAll();
+      await save(`ล้าง OT ${days.length} วันแล้ว ✓`, others);
+    }

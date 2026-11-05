@@ -1540,6 +1540,24 @@
       background: var(--surface2)
     }
 
+    .btn-d {
+      background: var(--red-lt);
+      color: var(--red)
+    }
+
+    .btn-d:hover {
+      background: var(--red);
+      color: var(--on-accent)
+    }
+
+    .btn-d:disabled,
+    .btn-d:disabled:hover {
+      opacity: .5;
+      cursor: not-allowed;
+      background: var(--red-lt);
+      color: var(--red)
+    }
+
     @media(max-width:900px) {
       .body {
         flex-direction: column
